@@ -1,7 +1,7 @@
-package com.nirmalamdhanam.domain.usecase
+package com.nirmalamgroup.nirmalamdhanam.domain.usecase
 
-import com.nirmalamdhanam.data.local.EnvelopeType
-import com.nirmalamdhanam.data.local.TransactionEntity
+import com.nirmalamgroup.nirmalamdhanam.data.local.EnvelopeType
+import com.nirmalamgroup.nirmalamdhanam.data.local.TransactionEntity
 import kotlin.math.roundToLong
 
 class LaborHourConversionUseCase {

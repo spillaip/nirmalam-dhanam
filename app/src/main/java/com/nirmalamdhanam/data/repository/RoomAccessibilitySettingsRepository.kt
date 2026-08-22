@@ -1,8 +1,8 @@
-package com.nirmalamdhanam.data.repository
+package com.nirmalamgroup.nirmalamdhanam.data.repository
 
-import com.nirmalamdhanam.data.local.ConfigDao
-import com.nirmalamdhanam.data.local.DatabaseAccessGate
-import com.nirmalamdhanam.domain.repository.AccessibilitySettingsRepository
+import com.nirmalamgroup.nirmalamdhanam.data.local.ConfigDao
+import com.nirmalamgroup.nirmalamdhanam.data.local.DatabaseAccessGate
+import com.nirmalamgroup.nirmalamdhanam.domain.repository.AccessibilitySettingsRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map

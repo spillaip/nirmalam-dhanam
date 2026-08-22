@@ -1,16 +1,17 @@
-package com.nirmalamdhanam.data.local
+package com.nirmalamgroup.nirmalamdhanam.data.local
 
 import android.content.Context
 import android.net.Uri
 import android.util.Base64
 import androidx.room.withTransaction
+import androidx.sqlite.db.SupportSQLiteOpenHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import net.sqlcipher.database.SQLiteDatabase
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
@@ -143,14 +144,21 @@ class NdfBackupManager(
     }
 
     private fun validateEncryptedDatabase(file: File, passphrase: CharArray, salt: ByteArray) {
-        SQLiteDatabase.loadLibs(context)
         val key = DatabaseKeyDeriver.derive(passphrase, salt)
         try {
-            val encrypted = SQLiteDatabase.openDatabase(file.absolutePath, key, null, SQLiteDatabase.OPEN_READONLY)
+            val helper = SupportOpenHelperFactory(key).create(
+                SupportSQLiteOpenHelper.Configuration.builder(context)
+                    .name(file.absolutePath)
+                    .callback(object : SupportSQLiteOpenHelper.Callback(2) {
+                        override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) = Unit
+                        override fun onUpgrade(db: androidx.sqlite.db.SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+                    })
+                    .build()
+            )
             try {
-                val cursor = encrypted.rawQuery("SELECT count(*) FROM sqlite_master", emptyArray<String>())
+                val cursor = helper.writableDatabase.query("SELECT count(*) FROM sqlite_master")
                 try { require(cursor.moveToFirst()) { "Encrypted database could not be read." } } finally { cursor.close() }
-            } finally { encrypted.close() }
+            } finally { helper.close() }
         } finally { key.fill(0) }
     }
 

@@ -1,4 +1,4 @@
-package com.nirmalamdhanam.ui.components
+package com.nirmalamgroup.nirmalamdhanam.ui.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth

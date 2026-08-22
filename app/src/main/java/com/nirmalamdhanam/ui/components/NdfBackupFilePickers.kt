@@ -1,4 +1,4 @@
-package com.nirmalamdhanam.ui.components
+package com.nirmalamgroup.nirmalamdhanam.ui.components
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,11 +24,11 @@ fun NdfBackupFilePickers(
     modifier: Modifier = Modifier
 ) {
     val createDocument = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument(NDF_MIME_TYPE), onExportDestinationSelected
-    )
+        ActivityResultContracts.CreateDocument(NDF_MIME_TYPE)
+    ) { uri -> uri?.let(onExportDestinationSelected) }
     val openDocument = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(), onImportSourceSelected
-    )
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let(onImportSourceSelected) }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { createDocument.launch("nirmalam-dhanam-backup.ndf") }) { Text("Export .ndf") }
         OutlinedButton(onClick = { openDocument.launch(arrayOf(NDF_MIME_TYPE, "application/zip")) }) { Text("Import .ndf") }

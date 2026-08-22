@@ -1,4 +1,4 @@
-package com.nirmalamdhanam.ui.components
+package com.nirmalamgroup.nirmalamdhanam.ui.components
 
 import android.content.Context
 import android.os.Build
@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.nirmalamdhanam.data.local.TransactionEntity
+import com.nirmalamgroup.nirmalamdhanam.data.local.TransactionEntity
 import kotlin.math.max
 
 @Composable

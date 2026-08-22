@@ -1,11 +1,11 @@
-package com.nirmalamdhanam.ui
+package com.nirmalamgroup.nirmalamdhanam.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nirmalamdhanam.data.local.CashPosition
-import com.nirmalamdhanam.data.local.EnvelopeEntity
-import com.nirmalamdhanam.data.local.TransactionEntity
-import com.nirmalamdhanam.domain.repository.FinanceRepository
+import com.nirmalamgroup.nirmalamdhanam.data.local.CashPosition
+import com.nirmalamgroup.nirmalamdhanam.data.local.EnvelopeEntity
+import com.nirmalamgroup.nirmalamdhanam.data.local.TransactionEntity
+import com.nirmalamgroup.nirmalamdhanam.domain.repository.FinanceRepository
 import kotlinx.coroutines.flow.*
 
 data class FinanceDashboardState(val cash: CashPosition = CashPosition(0, 0), val envelopes: List<EnvelopeEntity> = emptyList(), val holdingTransactions: List<TransactionEntity> = emptyList(), val safeToSpendPaise: Long? = null, val autonomyDays: Double? = null, val neurodiverseModeEnabled: Boolean = false)

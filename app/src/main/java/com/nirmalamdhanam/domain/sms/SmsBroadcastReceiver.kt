@@ -1,4 +1,4 @@
-package com.nirmalamdhanam.domain.sms
+package com.nirmalamgroup.nirmalamdhanam.domain.sms
 
 import android.content.BroadcastReceiver
 import android.content.Context

@@ -1,6 +1,6 @@
-package com.nirmalamdhanam.domain.repository
+package com.nirmalamgroup.nirmalamdhanam.domain.repository
 
-import com.nirmalamdhanam.data.local.*
+import com.nirmalamgroup.nirmalamdhanam.data.local.*
 import kotlinx.coroutines.flow.Flow
 
 interface FinanceRepository {

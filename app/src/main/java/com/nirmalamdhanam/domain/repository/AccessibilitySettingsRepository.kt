@@ -1,4 +1,4 @@
-package com.nirmalamdhanam.domain.repository
+package com.nirmalamgroup.nirmalamdhanam.domain.repository
 
 import kotlinx.coroutines.flow.Flow
 

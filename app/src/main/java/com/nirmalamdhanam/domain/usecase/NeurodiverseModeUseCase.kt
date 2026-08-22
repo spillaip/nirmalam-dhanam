@@ -1,6 +1,6 @@
-package com.nirmalamdhanam.domain.usecase
+package com.nirmalamgroup.nirmalamdhanam.domain.usecase
 
-import com.nirmalamdhanam.domain.repository.AccessibilitySettingsRepository
+import com.nirmalamgroup.nirmalamdhanam.domain.repository.AccessibilitySettingsRepository
 import kotlinx.coroutines.flow.Flow
 
 class ObserveNeurodiverseModeUseCase(private val settings: AccessibilitySettingsRepository) {

@@ -1,4 +1,4 @@
-package com.nirmalamdhanam.ui
+package com.nirmalamgroup.nirmalamdhanam.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -7,14 +7,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.unit.dp
-import com.nirmalamdhanam.ui.components.AntiPanicPortfolioContainer
-import com.nirmalamdhanam.ui.components.CoolDownTankCard
-import com.nirmalamdhanam.ui.components.NeurodiverseModeToggle
+import com.nirmalamgroup.nirmalamdhanam.ui.components.AntiPanicPortfolioContainer
+import com.nirmalamgroup.nirmalamdhanam.ui.components.CoolDownTankCard
+import com.nirmalamgroup.nirmalamdhanam.ui.components.NeurodiverseModeToggle
 
 @Composable
 fun TabletLandscapeScreen(state: FinanceDashboardState, portfolioValuePaise: Long, onTankConfirm: (String) -> Unit, onTankDismiss: (String) -> Unit, onNeurodiverseModeChange: (Boolean) -> Unit = {}, modifier: Modifier = Modifier) {
