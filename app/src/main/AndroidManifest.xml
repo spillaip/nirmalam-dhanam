@@ -1,7 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <application android:allowBackup="false" android:icon="@drawable/nirmalam_launcher_icon_master" android:label="Nirmalam Dhanam" android:theme="@style/Theme.NirmalamDhanam">
+    <application
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@drawable/nirmalam_launcher_icon_master"
+        android:roundIcon="@drawable/nirmalam_launcher_icon_master"
+        android:label="Nirmalam Dhanam"
+        android:theme="@style/Theme.NirmalamDhanam">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

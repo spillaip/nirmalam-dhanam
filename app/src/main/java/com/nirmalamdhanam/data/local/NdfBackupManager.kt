@@ -19,6 +19,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.UUID
+import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -29,12 +30,16 @@ object DatabaseAccessGate { val writeLock = Mutex() }
 @Serializable
 data class NdfManifest(
     val format: String = "nirmalam-dhanam-backup",
-    val formatVersion: Int = 1,
+    val formatVersion: Int = 2,
     val exportedAtEpochMs: Long,
     val databaseFile: String = DATABASE_ENTRY,
     val kdf: String = "PBKDF2WithHmacSHA256",
     val kdfIterations: Int = 210_000,
-    val kdfSaltBase64: String
+    val kdfSaltBase64: String,
+    /** SHA-256 of the encrypted database payload; required by NDF v2. */
+    val databaseSha256: String? = null,
+    /** Informational Room schema version for external tools; never used to bypass validation. */
+    val databaseSchemaVersion: Int? = null
 ) {
     companion object { const val DATABASE_ENTRY = "database.sqlcipher"; const val MANIFEST_ENTRY = "manifest.json" }
 }
@@ -68,7 +73,12 @@ class NdfBackupManager(
                 database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { it.moveToFirst() }
                 val source = context.getDatabasePath(NirmalamDatabase.FILE_NAME)
                 check(source.isFile && source.length() > 0) { "No local database is available to export." }
-                val manifest = NdfManifest(exportedAtEpochMs = System.currentTimeMillis(), kdfSaltBase64 = Base64.encodeToString(keyManager.salt, Base64.NO_WRAP))
+                val manifest = NdfManifest(
+                    exportedAtEpochMs = System.currentTimeMillis(),
+                    kdfSaltBase64 = Base64.encodeToString(keyManager.salt, Base64.NO_WRAP),
+                    databaseSha256 = source.sha256Hex(),
+                    databaseSchemaVersion = 8
+                )
                 context.contentResolver.openOutputStream(destination, "wt")?.use { output ->
                     ZipOutputStream(BufferedOutputStream(output)).use { zip ->
                         zip.putNextEntry(ZipEntry(NdfManifest.MANIFEST_ENTRY))
@@ -95,6 +105,7 @@ class NdfBackupManager(
             try {
                 val manifest = unpack(source, staging)
                 validateManifest(manifest)
+                manifest.databaseSha256?.let { expected -> require(staging.sha256Hex().equals(expected, ignoreCase = true)) { "Backup integrity check failed." } }
                 val importedSalt = Base64.decode(manifest.kdfSaltBase64, Base64.NO_WRAP)
                 validateEncryptedDatabase(staging, passphrase, importedSalt)
                 closeActiveDatabase()
@@ -138,9 +149,10 @@ class NdfBackupManager(
     }
 
     private fun validateManifest(manifest: NdfManifest) {
-        require(manifest.format == "nirmalam-dhanam-backup" && manifest.formatVersion == 1) { "Unsupported .ndf backup format." }
+        require(manifest.format == "nirmalam-dhanam-backup" && manifest.formatVersion in 1..2) { "Unsupported .ndf backup format." }
         require(manifest.databaseFile == NdfManifest.DATABASE_ENTRY && manifest.kdf == "PBKDF2WithHmacSHA256" && manifest.kdfIterations == 210_000) { "Invalid .ndf encryption metadata." }
         require(Base64.decode(manifest.kdfSaltBase64, Base64.NO_WRAP).size >= 16) { "Invalid .ndf key salt." }
+        if (manifest.formatVersion >= 2) require(manifest.databaseSha256?.matches(Regex("[0-9a-fA-F]{64}")) == true) { "NDF v2 requires a SHA-256 payload digest." }
     }
 
     private fun validateEncryptedDatabase(file: File, passphrase: CharArray, salt: ByteArray) {
@@ -184,6 +196,15 @@ class NdfBackupManager(
     private fun deleteSidecars(databaseFile: File) {
         File("${databaseFile.path}-wal").delete()
         File("${databaseFile.path}-shm").delete()
+    }
+
+    private fun File.sha256Hex(): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        FileInputStream(this).use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) { val read = input.read(buffer); if (read < 0) break; digest.update(buffer, 0, read) }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun InputStream.copyLimitedTo(output: FileOutputStream, limit: Long): Long {

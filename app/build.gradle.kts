@@ -9,8 +9,15 @@ plugins {
 }
 
 android { namespace = "com.nirmalamgroup.nirmalamdhanam"; compileSdk = 35
-    defaultConfig { applicationId = "com.nirmalamgroup.nirmalamdhanam"; minSdk = 26; targetSdk = 35; versionCode = 11; versionName = "1.1.0" }
+    defaultConfig { applicationId = "com.nirmalamgroup.nirmalamdhanam"; minSdk = 26; targetSdk = 35; versionCode = 12; versionName = "1.2.0" }
     buildFeatures { compose = true; buildConfig = true }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

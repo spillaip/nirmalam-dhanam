@@ -16,7 +16,7 @@ import javax.crypto.spec.PBEKeySpec
 
 class DatabaseConverters { @TypeConverter fun fromAccountKind(v: AccountKind) = v.name; @TypeConverter fun toAccountKind(v: String) = AccountKind.valueOf(v); @TypeConverter fun fromProductType(v: AccountProductType) = v.name; @TypeConverter fun toProductType(v: String) = AccountProductType.valueOf(v); @TypeConverter fun fromAssetClass(v: AssetClass) = v.name; @TypeConverter fun toAssetClass(v: String) = AssetClass.valueOf(v); @TypeConverter fun fromDirection(v: TransactionDirection) = v.name; @TypeConverter fun toDirection(v: String) = TransactionDirection.valueOf(v); @TypeConverter fun fromEnvelope(v: EnvelopeType?) = v?.name; @TypeConverter fun toEnvelope(v: String?) = v?.let(EnvelopeType::valueOf) }
 
-@Database(entities = [ConfigEntity::class, AccountEntity::class, TransactionEntity::class, EnvelopeEntity::class, CategoryEntity::class, PayeeEntity::class, InvestmentBalanceSnapshotEntity::class, NetWorthSnapshotEntity::class], version = 7, exportSchema = false)
+@Database(entities = [ConfigEntity::class, AccountEntity::class, TransactionEntity::class, EnvelopeEntity::class, CategoryEntity::class, PayeeEntity::class, InvestmentBalanceSnapshotEntity::class, NetWorthSnapshotEntity::class], version = 8, exportSchema = false)
 @TypeConverters(DatabaseConverters::class)
 abstract class NirmalamDatabase : RoomDatabase() {
     abstract fun configDao(): ConfigDao
@@ -34,7 +34,7 @@ abstract class NirmalamDatabase : RoomDatabase() {
             val key = DatabaseKeyManager(context.applicationContext).derive(passphrase)
             return Room.databaseBuilder(context, NirmalamDatabase::class.java, FILE_NAME)
                 .openHelperFactory(SupportOpenHelperFactory(key))
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build()
         }
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -79,6 +79,11 @@ abstract class NirmalamDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE accounts ADD COLUMN assetClass TEXT NOT NULL DEFAULT 'CASH'")
                 database.execSQL("ALTER TABLE accounts ADD COLUMN targetAllocationBps INTEGER NOT NULL DEFAULT 0")
                 database.execSQL("UPDATE accounts SET assetClass = CASE productType WHEN 'EQUITY' THEN 'EQUITY' WHEN 'MUTUAL_FUNDS' THEN 'EQUITY' WHEN 'PPF' THEN 'DEBT' WHEN 'EPF' THEN 'RETIREMENT' WHEN 'NPS' THEN 'RETIREMENT' WHEN 'SUPERANNUATION' THEN 'RETIREMENT' ELSE 'CASH' END")
+            }
+        }
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE categories ADD COLUMN iconKey TEXT")
             }
         }
     }

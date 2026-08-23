@@ -5,25 +5,29 @@ Nirmalam Dhanam is a local-first, privacy-centred personal finance app for Andro
 ## What you can do
 
 - Unlock a local SQLCipher Room database with a PBKDF2-derived passphrase key.
-- Track cash and bank activity with a payee, category, and optional private description.
-- Set up cash, credit, retirement, and investment accounts: PPF, EPF, NPS, superannuation, mutual funds, and equity.
+- Track cash and bank activity with a Vyakti (payee), direction-neutral Varga (category), and optional private description.
+- Set up cash, bank, credit, loan, retirement, and investment Khatas: PPF, EPF, NPS, superannuation, mutual funds/ETFs, direct stocks, and bullion.
+- Start with optional India-oriented Varga and Vyakti suggestions for everyday merchants, banks, LPG/gas, electricity providers, telecom, travel, and common income sources.
 - Check in dated investment cost and value balances for portfolio and net-worth tracking.
-- Use the **Home** screen for true available cash, safe-to-spend today, cooling-tank decisions, and quick entry.
-- Use the **Ledger** for a searchable money pulse, income/spend filters, account-scoped results, day-grouped entries, and a local-only Spend Map.
-- Use the **Portfolio** screen for valuation history, allocation targets, net worth, and long-term trend context.
-- Use **Settings** for neurodiverse mode and privacy guidance.
+- Use **Prarambha** for true available cash, safe-to-spend today, cooling-tank decisions, a local seven-day Money Pulse chart, and a compact portfolio summary.
+- Use **Vyavahara** for searchable money activity, account/category filters, inline modifications, reports, and a local-only Spend Map.
+- Use **Nivesha** for investment asset CRUD, dated monthly cost/value check-ins, allocation targets, and performance context.
+- Use **Sampada** for a live net-worth dashboard with assets, liabilities, allocation, and trend.
+- Use **Vinyasa** for neurodiverse mode, currency, privacy guidance, Varga, and Vyakti management.
 - Pause wants purchases in a 48-hour cooling tank, with haptic confirmation actions.
 - Parse supported Indian financial SMS alerts entirely in memory; raw SMS text is never written to disk.
-- Export and import encrypted `.ndf` backups through Android's system file picker. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata.
+- Use the encrypted `.ndf` backup engine for local export/import integration. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata; Vinyasa backup controls are the next UI integration step.
+- Produce a versioned, read-only JSON interchange report for local Python/Java analysis; values use integer paise to avoid precision loss.
 
 ## Screen map
 
 | Screen | Purpose |
 | --- | --- |
-| Home | Daily cashflow, safe-to-spend, quick income/expense entry, and cooling-tank decisions. |
-| Ledger | Searchable transaction history with an account dropdown, income/spend filters, Money Pulse, and Spend Map. |
-| Portfolio | Investment check-ins, allocation, performance context, and net-worth history. |
-| Settings | Neurodiverse presentation preference and local-data privacy guidance. |
+| Prarambha | Available cash, daily decision metrics, a seven-day Money Pulse chart, cooling-tank decisions, and portfolio summary. |
+| Vyavahara | Searchable income/expense history, filters, reports, and transaction entry. |
+| Nivesha | Investment asset management, monthly balances, allocation, and performance history. |
+| Sampada | Net worth: current assets, liabilities, allocation, and trend. |
+| Vinyasa | Preferences, Varga/Vyakti setup, currency, guide, and privacy disclosure. |
 
 ## Technology
 
@@ -31,7 +35,7 @@ Kotlin, Coroutines, StateFlow, KotlinX Serialization, Jetpack Compose Material 3
 
 ## Project status
 
-This repository contains the Version 1.1.0 MVP: encrypted local unlock, core money entry, Ledger, portfolio tracking, and Material 3 screens are runnable. Before a production release, add biometric-assisted unlock, runtime SMS consent UX, comprehensive automated tests, accessibility testing, and CI signing configuration.
+This repository contains Version 1.2.0: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, and Material 3 screens. Before publishing, target Android API 36, configure Play App Signing, complete accessibility/device testing, publish a privacy-policy URL, accurately complete the Data safety form, and remove the restricted SMS permission unless the app meets Google Play's permitted-use requirements.
 
 ## Local build
 
@@ -46,3 +50,5 @@ This repository contains the Version 1.1.0 MVP: encrypted local unlock, core mon
 ## Security notes
 
 The user's passphrase must be collected only after device authentication and supplied directly to the database unlock/backup operation. Do not log passphrases, transaction data, or raw SMS content. `.ndf` files remain encrypted, but should still be stored only in locations the user trusts.
+
+See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange contracts.

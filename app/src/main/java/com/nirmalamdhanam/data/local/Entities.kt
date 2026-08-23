@@ -16,8 +16,8 @@ data class ConfigEntity(
 )
 
 enum class AccountKind { SPENDING, CREDIT, SAVINGS, EMERGENCY, INVESTMENT }
-enum class AccountProductType { CASH, BANK, CREDIT_CARD, LOAN, PPF, EPF, NPS, SUPERANNUATION, MUTUAL_FUNDS, EQUITY }
-enum class AssetClass { EQUITY, DEBT, RETIREMENT, CASH, GOLD, OTHER }
+enum class AccountProductType { CASH, BANK, CREDIT_CARD, LOAN, PPF, EPF, NPS, SUPERANNUATION, MUTUAL_FUNDS, EQUITY, STOCKS, BULLION }
+enum class AssetClass { EQUITY, DEBT, RETIREMENT, CASH, GOLD, BULLION, OTHER }
 
 @Entity(tableName = "accounts", indices = [Index("kind")])
 data class AccountEntity(
@@ -39,7 +39,9 @@ data class CategoryEntity(
     @PrimaryKey val id: String,
     val name: String,
     val transactionDirection: TransactionDirection,
-    val isSystem: Boolean = false
+    val isSystem: Boolean = false,
+    /** A stable, label-backed glyph key chosen by the user. */
+    val iconKey: String? = null
 )
 
 @Entity(tableName = "payees", indices = [Index(value = ["name"], unique = true)])
