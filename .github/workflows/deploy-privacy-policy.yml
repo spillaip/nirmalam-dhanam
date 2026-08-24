@@ -24,9 +24,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v6
+      # The repository owner must enable Settings → Pages → GitHub Actions once.
+      # `enablement: true` would require a separately managed PAT, not GITHUB_TOKEN.
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: docs
       - id: deployment

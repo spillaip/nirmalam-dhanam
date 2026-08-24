@@ -60,6 +60,6 @@ See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange con
 
 ## Release administration
 
-- [Privacy policy](https://spillaip.github.io/nirmalam-dhanam/privacy-policy.html) — stable GitHub Pages URL linked from Vinyasa. The [source](docs/privacy-policy.html) deploys automatically from `main`; enable **Settings → Pages → GitHub Actions** once in GitHub to activate the first deployment.
+- [Privacy policy](https://spillaip.github.io/nirmalam-dhanam/privacy-policy.html) — stable GitHub Pages URL linked from Vinyasa. The [source](docs/privacy-policy.html) deploys automatically from `main`; enable **Settings → Pages → GitHub Actions** once in GitHub to activate the first deployment. This one-time setting cannot be enabled by `GITHUB_TOKEN`; it requires repository-owner access.
 - [Play Console submission checklist](PLAY_CONSOLE_SUBMISSION.md) — Data safety, app-content, and content-rating preparation.
 - Upload signing is configured locally with a 4,096-bit RSA key at `release-signing/nirmalam-upload-key.jks` and ignored `keystore.properties`. Back up both into a password manager or encrypted vault; never commit either file. Enable Play App Signing when uploading the first AAB.
