@@ -66,18 +66,18 @@ class NdfBackupManager(
     suspend fun exportTo(destination: Uri, passphrase: CharArray): NdfResult = withContext(Dispatchers.IO) {
         DatabaseAccessGate.writeLock.withLock {
             try {
-                // The caller normally receives this after device authentication. Deriving and
-                // immediately clearing it also ensures a passphrase is actually supplied here.
-                keyManager.derive(passphrase).fill(0)
-                database.withTransaction { /* waits for all Room writes already in progress */ }
-                database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { it.moveToFirst() }
                 val source = context.getDatabasePath(NirmalamDatabase.FILE_NAME)
                 check(source.isFile && source.length() > 0) { "No local database is available to export." }
+                // Ensure the supplied passphrase can open this database. Without this check, a
+                // mistyped export passphrase would create a backup that cannot later be restored.
+                validateEncryptedDatabase(source, passphrase.copyOf(), keyManager.salt)
+                database.withTransaction { /* waits for all Room writes already in progress */ }
+                database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { it.moveToFirst() }
                 val manifest = NdfManifest(
                     exportedAtEpochMs = System.currentTimeMillis(),
                     kdfSaltBase64 = Base64.encodeToString(keyManager.salt, Base64.NO_WRAP),
                     databaseSha256 = source.sha256Hex(),
-                    databaseSchemaVersion = 8
+                    databaseSchemaVersion = 9
                 )
                 context.contentResolver.openOutputStream(destination, "wt")?.use { output ->
                     ZipOutputStream(BufferedOutputStream(output)).use { zip ->

@@ -15,7 +15,6 @@ Nirmalam Dhanam is a local-first, privacy-centred personal finance app for Andro
 - Use **Sampada** for a live net-worth dashboard with assets, liabilities, allocation, and trend.
 - Use **Vinyasa** for neurodiverse mode, currency, privacy guidance, Varga, and Vyakti management.
 - Pause wants purchases in a 48-hour cooling tank, with haptic confirmation actions.
-- Parse supported Indian financial SMS alerts entirely in memory; raw SMS text is never written to disk.
 - Use the encrypted `.ndf` backup engine for local export/import integration. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata; Vinyasa backup controls are the next UI integration step.
 - Produce a versioned, read-only JSON interchange report for local Python/Java analysis; values use integer paise to avoid precision loss.
 
@@ -35,7 +34,7 @@ Kotlin, Coroutines, StateFlow, KotlinX Serialization, Jetpack Compose Material 3
 
 ## Project status
 
-This repository contains Version 1.2.0: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, and Material 3 screens. Before publishing, target Android API 36, configure Play App Signing, complete accessibility/device testing, publish a privacy-policy URL, accurately complete the Data safety form, and remove the restricted SMS permission unless the app meets Google Play's permitted-use requirements.
+This repository contains Version 1.3.0: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, encrypted backup/restore controls, and Material 3 screens. The public manifest targets Android API 36 and does not declare restricted SMS permissions. Before publishing, configure Play App Signing, host the included privacy-policy page at a stable HTTPS URL, complete the Play Console declarations, and complete accessibility/device testing.
 
 ## Local build
 
@@ -52,3 +51,9 @@ This repository contains Version 1.2.0: local encrypted finance tracking, income
 The user's passphrase must be collected only after device authentication and supplied directly to the database unlock/backup operation. Do not log passphrases, transaction data, or raw SMS content. `.ndf` files remain encrypted, but should still be stored only in locations the user trusts.
 
 See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange contracts.
+
+## Release administration
+
+- [Privacy policy](docs/privacy-policy.html) — public policy source linked from Vinyasa.
+- [Play Console submission checklist](PLAY_CONSOLE_SUBMISSION.md) — Data safety, app-content, and content-rating preparation.
+- [Upload-key template](keystore.properties.example) — copy it locally as `keystore.properties`; never commit the real key or passwords.

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun save(config: ConfigEntity)
     @Query("UPDATE nirmalam_dhanam_config SET neurodiverseModeEnabled = :enabled WHERE id = 1") suspend fun setNeurodiverseMode(enabled: Boolean): Int
     @Query("UPDATE nirmalam_dhanam_config SET currencyCode = :currencyCode WHERE id = 1") suspend fun setCurrencyCode(currencyCode: String): Int
+    @Query("UPDATE nirmalam_dhanam_config SET starterDataRemoved = :removed WHERE id = 1") suspend fun setStarterDataRemoved(removed: Boolean): Int
 }
 
 @Dao interface AccountDao {
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY name") suspend fun getActive(): List<AccountEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(account: AccountEntity)
     @Query("UPDATE accounts SET isArchived = 1 WHERE id = :accountId") suspend fun archive(accountId: String): Int
+    @Query("DELETE FROM accounts WHERE id LIKE 'demo-%'") suspend fun deleteDemoAccounts(): Int
     @Query("""
         SELECT
           COALESCE(SUM(CASE WHEN a.kind = 'SPENDING' THEN a.openingBalancePaise + COALESCE(t.net, 0) ELSE 0 END), 0) AS spendingPaise,
@@ -49,6 +51,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMs DESC LIMIT :limit") fun observeRecent(limit: Int = 100): Flow<List<TransactionEntity>>
     @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMs ASC, id ASC") suspend fun getAll(): List<TransactionEntity>
     @Query("DELETE FROM transactions WHERE id = :transactionId") suspend fun delete(transactionId: String): Int
+    @Query("DELETE FROM transactions WHERE id LIKE 'demo-%'") suspend fun deleteDemoTransactions(): Int
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName") suspend fun renameCategoryReferences(oldName: String, newName: String): Int
     @Query("UPDATE transactions SET payee = :newName, merchant = :newName WHERE payee = :oldName") suspend fun renamePayeeReferences(oldName: String, newName: String): Int
     @Query("UPDATE transactions SET isHoldingTank = 0, coolDownExpiryEpochMs = NULL WHERE id = :transactionId") suspend fun confirmHoldingTank(transactionId: String): Int
@@ -69,6 +72,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM categories WHERE id = :id LIMIT 1") suspend fun getById(id: String): CategoryEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(category: CategoryEntity)
     @Query("DELETE FROM categories WHERE id = :id AND isSystem = 0") suspend fun deleteUserCreated(id: String): Int
+    @Query("DELETE FROM categories WHERE id LIKE 'system-varga-%' OR id LIKE 'expense-%' OR id LIKE 'income-%'") suspend fun deleteStarterCategories(): Int
 }
 
 @Dao interface PayeeDao {
@@ -79,6 +83,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("UPDATE payees SET defaultCategory = :newName WHERE defaultCategory = :oldName") suspend fun renameDefaultCategory(oldName: String, newName: String): Int
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(payee: PayeeEntity)
     @Query("DELETE FROM payees WHERE id = :id") suspend fun delete(id: String): Int
+    @Query("DELETE FROM payees WHERE id LIKE 'system-vyakti-%' OR id LIKE 'demo-payee-%'") suspend fun deleteStarterPayees(): Int
 }
 
 @Dao interface InvestmentBalanceSnapshotDao {
@@ -93,10 +98,12 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId AND asOfEpochDay = :epochDay LIMIT 1") suspend fun getForAccountAndDay(accountId: String, epochDay: Long): InvestmentBalanceSnapshotEntity?
     @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId ORDER BY asOfEpochDay DESC") fun observeForAccount(accountId: String): Flow<List<InvestmentBalanceSnapshotEntity>>
     @Query("DELETE FROM investment_balance_snapshots WHERE id = :snapshotId") suspend fun delete(snapshotId: String): Int
+    @Query("DELETE FROM investment_balance_snapshots WHERE id LIKE 'demo-%'") suspend fun deleteDemoSnapshots(): Int
 }
 
 @Dao interface NetWorthSnapshotDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(snapshot: NetWorthSnapshotEntity)
     @Query("SELECT * FROM net_worth_snapshots ORDER BY asOfEpochDay DESC") fun observeAll(): Flow<List<NetWorthSnapshotEntity>>
     @Query("SELECT * FROM net_worth_snapshots ORDER BY asOfEpochDay ASC") suspend fun getAll(): List<NetWorthSnapshotEntity>
+    @Query("DELETE FROM net_worth_snapshots WHERE id LIKE 'demo-%'") suspend fun deleteDemoSnapshots(): Int
 }

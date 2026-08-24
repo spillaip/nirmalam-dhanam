@@ -12,6 +12,8 @@ data class ConfigEntity(
     /** Simplifies presentation only; it never changes balances, budgets, or transaction rules. */
     val neurodiverseModeEnabled: Boolean = false,
     val currencyCode: String = "INR",
+    /** Stops optional first-run suggestions and demo records from being restored after removal. */
+    val starterDataRemoved: Boolean = false,
     val createdAtEpochMs: Long = System.currentTimeMillis()
 )
 

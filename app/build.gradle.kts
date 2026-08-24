@@ -1,4 +1,15 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+
+val signingProperties = Properties().apply {
+    val source = rootProject.file("keystore.properties")
+    if (source.isFile) source.inputStream().use(::load)
+}
+fun releaseSecret(name: String): String? = providers.gradleProperty(name).orElse(providers.environmentVariable(name)).orNull ?: signingProperties.getProperty(name)
+val uploadStoreFile = releaseSecret("NIRMALAM_UPLOAD_STORE_FILE")
+val uploadStorePassword = releaseSecret("NIRMALAM_UPLOAD_STORE_PASSWORD")
+val uploadKeyAlias = releaseSecret("NIRMALAM_UPLOAD_KEY_ALIAS")
+val uploadKeyPassword = releaseSecret("NIRMALAM_UPLOAD_KEY_PASSWORD")
 
 plugins {
     id("com.android.application")
@@ -8,14 +19,25 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-android { namespace = "com.nirmalamgroup.nirmalamdhanam"; compileSdk = 35
-    defaultConfig { applicationId = "com.nirmalamgroup.nirmalamdhanam"; minSdk = 26; targetSdk = 35; versionCode = 12; versionName = "1.2.0" }
+android { namespace = "com.nirmalamgroup.nirmalamdhanam"; compileSdk = 36
+    defaultConfig { applicationId = "com.nirmalamgroup.nirmalamdhanam"; minSdk = 26; targetSdk = 36; versionCode = 13; versionName = "1.3.0" }
     buildFeatures { compose = true; buildConfig = true }
+    signingConfigs {
+        create("release") {
+            if (!uploadStoreFile.isNullOrBlank() && !uploadStorePassword.isNullOrBlank() && !uploadKeyAlias.isNullOrBlank() && !uploadKeyPassword.isNullOrBlank()) {
+                storeFile = file(uploadStoreFile)
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (!uploadStoreFile.isNullOrBlank() && !uploadStorePassword.isNullOrBlank() && !uploadKeyAlias.isNullOrBlank() && !uploadKeyPassword.isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
