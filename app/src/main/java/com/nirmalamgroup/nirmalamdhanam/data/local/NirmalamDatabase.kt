@@ -14,9 +14,9 @@ import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
-class DatabaseConverters { @TypeConverter fun fromAccountKind(v: AccountKind) = v.name; @TypeConverter fun toAccountKind(v: String) = AccountKind.valueOf(v); @TypeConverter fun fromProductType(v: AccountProductType) = v.name; @TypeConverter fun toProductType(v: String) = AccountProductType.valueOf(v); @TypeConverter fun fromAssetClass(v: AssetClass) = v.name; @TypeConverter fun toAssetClass(v: String) = AssetClass.valueOf(v); @TypeConverter fun fromDirection(v: TransactionDirection) = v.name; @TypeConverter fun toDirection(v: String) = TransactionDirection.valueOf(v); @TypeConverter fun fromEnvelope(v: EnvelopeType?) = v?.name; @TypeConverter fun toEnvelope(v: String?) = v?.let(EnvelopeType::valueOf) }
+class DatabaseConverters { @TypeConverter fun fromAccountKind(v: AccountKind) = v.name; @TypeConverter fun toAccountKind(v: String) = AccountKind.valueOf(v); @TypeConverter fun fromProductType(v: AccountProductType) = v.name; @TypeConverter fun toProductType(v: String) = AccountProductType.valueOf(v); @TypeConverter fun fromAssetClass(v: AssetClass) = v.name; @TypeConverter fun toAssetClass(v: String) = AssetClass.valueOf(v); @TypeConverter fun fromBenchmarkTrackingMethod(v: BenchmarkTrackingMethod) = v.name; @TypeConverter fun toBenchmarkTrackingMethod(v: String) = BenchmarkTrackingMethod.valueOf(v); @TypeConverter fun fromDirection(v: TransactionDirection) = v.name; @TypeConverter fun toDirection(v: String) = TransactionDirection.valueOf(v); @TypeConverter fun fromEnvelope(v: EnvelopeType?) = v?.name; @TypeConverter fun toEnvelope(v: String?) = v?.let(EnvelopeType::valueOf) }
 
-@Database(entities = [ConfigEntity::class, AccountEntity::class, TransactionEntity::class, EnvelopeEntity::class, CategoryEntity::class, PayeeEntity::class, InvestmentBalanceSnapshotEntity::class, NetWorthSnapshotEntity::class], version = 9, exportSchema = false)
+@Database(entities = [ConfigEntity::class, AccountEntity::class, TransactionEntity::class, EnvelopeEntity::class, CategoryEntity::class, PayeeEntity::class, InvestmentBalanceSnapshotEntity::class, NetWorthSnapshotEntity::class], version = 10, exportSchema = false)
 @TypeConverters(DatabaseConverters::class)
 abstract class NirmalamDatabase : RoomDatabase() {
     abstract fun configDao(): ConfigDao
@@ -34,13 +34,13 @@ abstract class NirmalamDatabase : RoomDatabase() {
             val key = DatabaseKeyManager(context.applicationContext).derive(passphrase)
             return Room.databaseBuilder(context, NirmalamDatabase::class.java, FILE_NAME)
                 .openHelperFactory(SupportOpenHelperFactory(key))
-                .addMigrations(*migrationsForTesting())
+                .addMigrations(*migrationChain())
                 .build()
         }
         /** Used by the instrumentation suite so it exercises the exact production migration chain. */
         fun migrationChain(): Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10
         )
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -94,6 +94,13 @@ abstract class NirmalamDatabase : RoomDatabase() {
         private val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN starterDataRemoved INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkIndexName TEXT")
+                database.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkTrackingMethod TEXT NOT NULL DEFAULT 'NONE'")
+                database.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkIsTotalReturn INTEGER NOT NULL DEFAULT 1")
             }
         }
     }

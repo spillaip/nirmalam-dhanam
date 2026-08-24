@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // Material 3 version bundled with this project exposes only menuAnchor().
+
 package com.nirmalamgroup.nirmalamdhanam
 
 import android.app.Application
@@ -10,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -35,7 +38,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.withTransaction
 import com.nirmalamgroup.nirmalamdhanam.data.local.*
 import com.nirmalamgroup.nirmalamdhanam.domain.usecase.CoolDownTankInterceptorUseCase
-import com.nirmalamgroup.nirmalamdhanam.domain.usecase.LaborHourConversionUseCase
 import com.nirmalamgroup.nirmalamdhanam.domain.usecase.MoneyFormatter
 import com.nirmalamgroup.nirmalamdhanam.domain.usecase.FinancialCalculations
 import com.nirmalamgroup.nirmalamdhanam.ui.components.CoolDownTankCard
@@ -44,7 +46,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
@@ -94,10 +95,30 @@ private fun suggestedAssetClass(productType: AccountProductType): AssetClass = w
     AccountProductType.BULLION -> AssetClass.BULLION
 }
 
+private data class BenchmarkSuggestion(val indexName: String, val method: BenchmarkTrackingMethod)
+
+/** Conservative offline suggestions only. The user-visible holding name is never treated as an authoritative source. */
+private fun suggestedBenchmark(holdingName: String, productType: AccountProductType): BenchmarkSuggestion? {
+    if (productType !in setOf(AccountProductType.MUTUAL_FUNDS, AccountProductType.EQUITY, AccountProductType.STOCKS)) return null
+    val name = holdingName.lowercase()
+    val index = when {
+        "nifty next 50" in name -> "Nifty Next 50 TRI"
+        "nifty 50" in name -> "Nifty 50 TRI"
+        "sensex" in name -> "S&P BSE SENSEX TRI"
+        "midcap" in name -> "Nifty Midcap 150 TRI"
+        "smallcap" in name -> "Nifty Smallcap 250 TRI"
+        "nifty 500" in name -> "Nifty 500 TRI"
+        "gold" in name -> "Domestic gold price benchmark"
+        else -> return null
+    }
+    return BenchmarkSuggestion(index, BenchmarkTrackingMethod.INDEX_TRACKING)
+}
+
 /**
- * Public because Android's default [ViewModelProvider] factory creates it through reflection.
+ * Public because Android's default ViewModel factory creates it through reflection.
  * Keeping this type private prevents the launcher activity from being created at runtime.
  */
+@Suppress("StaticFieldLeak")
 class NirmalamMvpViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application.applicationContext
     private val _state = MutableStateFlow(MvpFinanceState())
@@ -105,7 +126,6 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
     private var database: NirmalamDatabase? = null
     private var observation: Job? = null
     private val coolDown = CoolDownTankInterceptorUseCase()
-    private val laborHours = LaborHourConversionUseCase()
 
     fun unlock(passphrase: String) {
         if (passphrase.length < 8) { _state.update { it.copy(message = "Use at least 8 characters for your passphrase.") }; return }
@@ -145,7 +165,7 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
                     }.catch { error -> emit(MvpFinanceState(message = "Could not read the encrypted database: ${error.message}")) }
                         .collect { _state.value = it }
                 }
-            } catch (error: Throwable) {
+            } catch (_: Throwable) {
                 _state.update { it.copy(isLoading = false, message = "Unable to unlock this database. Check your passphrase.") }
             }
         }
@@ -269,11 +289,6 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun createCashAccount() = viewModelScope.launch(Dispatchers.IO) {
-        val opened = database ?: return@launch
-        opened.accountDao().upsert(AccountEntity(UUID.randomUUID().toString(), "Daily Cash", AccountKind.SPENDING))
-    }
-
     fun createAccount(name: String, productType: AccountProductType, assetClass: AssetClass, targetPercentText: String, openingBalanceText: String) = viewModelScope.launch(Dispatchers.IO) {
         val balance = runCatching { BigDecimal(openingBalanceText.trim().ifBlank { "0" }).movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact() }.getOrNull()
         val targetBps = runCatching { BigDecimal(targetPercentText.trim().ifBlank { "0" }).movePointRight(2).setScale(0, RoundingMode.HALF_UP).intValueExact() }.getOrNull()
@@ -284,14 +299,16 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
             AccountProductType.PPF, AccountProductType.EPF, AccountProductType.NPS, AccountProductType.SUPERANNUATION, AccountProductType.MUTUAL_FUNDS, AccountProductType.EQUITY, AccountProductType.STOCKS, AccountProductType.BULLION -> AccountKind.INVESTMENT
         }
         val storedBalance = if (productType == AccountProductType.CREDIT_CARD || productType == AccountProductType.LOAN) -balance else balance
-        database?.accountDao()?.upsert(AccountEntity(UUID.randomUUID().toString(), name.trim(), kind, productType, assetClass, targetBps, storedBalance))
+        val benchmark = suggestedBenchmark(name, productType)
+        database?.accountDao()?.upsert(AccountEntity(UUID.randomUUID().toString(), name.trim(), kind, productType, assetClass, targetBps, storedBalance, benchmarkIndexName = benchmark?.indexName, benchmarkTrackingMethod = benchmark?.method ?: BenchmarkTrackingMethod.NONE))
     }
     fun updateInvestmentAccount(accountId: String, name: String, productType: AccountProductType, assetClass: AssetClass, targetPercentText: String) = viewModelScope.launch(Dispatchers.IO) {
         val targetBps = runCatching { BigDecimal(targetPercentText.trim().ifBlank { "0" }).movePointRight(2).intValueExact() }.getOrNull()
         val opened = database ?: return@launch
         val account = state.value.accounts.firstOrNull { it.id == accountId } ?: return@launch
         if (name.isBlank() || targetBps == null || targetBps !in 0..10_000 || productType !in investmentProductTypes) { _state.update { it.copy(message = "Use a name, an investment product, and a target between 0% and 100%.") }; return@launch }
-        opened.accountDao().upsert(account.copy(name = name.trim(), kind = AccountKind.INVESTMENT, productType = productType, assetClass = assetClass, targetAllocationBps = targetBps))
+        val benchmark = suggestedBenchmark(name, productType)
+        opened.accountDao().upsert(account.copy(name = name.trim(), kind = AccountKind.INVESTMENT, productType = productType, assetClass = assetClass, targetAllocationBps = targetBps, benchmarkIndexName = benchmark?.indexName, benchmarkTrackingMethod = benchmark?.method ?: BenchmarkTrackingMethod.NONE))
     }
     fun archiveInvestmentAccount(accountId: String) = viewModelScope.launch(Dispatchers.IO) { database?.accountDao()?.archive(accountId) }
     fun exportInterchangeReport(destination: Uri) = viewModelScope.launch(Dispatchers.IO) {
@@ -358,11 +375,12 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
             opened.transactionDao().upsert(TransactionEntity(UUID.randomUUID().toString(), cashAccount.id, amount, TransactionDirection.DEBIT, merchant = label, category = "Investment contribution", payee = label, envelopeType = EnvelopeType.INVESTMENT))
             val previous = opened.investmentBalanceSnapshotDao().getLatest(accountId)
             val sameDay = previous?.asOfEpochDay == today
-            val snapshot = InvestmentBalanceSnapshotEntity(UUID.randomUUID().toString(), accountId, today, (previous?.totalCostPaise ?: 0) + amount, (previous?.currentValuePaise ?: 0) + amount, (if (sameDay) previous?.netContributionPaise ?: 0 else 0) + amount, "Contribution")
+            val priorContribution = if (sameDay) requireNotNull(previous).netContributionPaise else 0
+            val snapshot = InvestmentBalanceSnapshotEntity(UUID.randomUUID().toString(), accountId, today, (previous?.totalCostPaise ?: 0) + amount, (previous?.currentValuePaise ?: 0) + amount, priorContribution + amount, "Contribution")
             opened.investmentBalanceSnapshotDao().upsert(snapshot)
             val portfolioValue = opened.investmentBalanceSnapshotDao().getAll().groupBy { it.accountId }.values.sumOf { items -> items.maxBy { it.asOfEpochDay }.currentValuePaise }
             val reserves = state.value.accountBalances.filter { it.kind == AccountKind.SAVINGS || it.kind == AccountKind.EMERGENCY }.sumOf { it.balancePaise }
-            opened.netWorthSnapshotDao().upsert(NetWorthSnapshotEntity(UUID.randomUUID().toString(), today, state.value.cashPaise - amount + reserves + portfolioValue, portfolioValue))
+            opened.netWorthSnapshotDao().upsert(NetWorthSnapshotEntity(UUID.randomUUID().toString(), today, (state.value.cashPaise - amount) + reserves + portfolioValue, portfolioValue))
         }
     }
 
@@ -509,7 +527,7 @@ private fun NirmalamMvpApp(viewModel: NirmalamMvpViewModel = viewModel()) {
     }
     MaterialTheme(colorScheme = colorScheme) {
         Surface(Modifier.fillMaxSize()) {
-            if (state.isUnlocked) MvpHome(state, viewModel::createCashAccount, viewModel::createAccount, viewModel::updateInvestmentAccount, viewModel::archiveInvestmentAccount, viewModel::saveInvestmentBalance, viewModel::updateInvestmentBalance, viewModel::contributeToInvestment, viewModel::deleteInvestmentSnapshot, viewModel::deleteTransaction, viewModel::updateTransaction, viewModel::recordTransaction, viewModel::setNeurodiverseMode, viewModel::setCurrency, viewModel::exportInterchangeReport, viewModel::exportNdfBackup, viewModel::importNdfBackup, viewModel::saveCategory, viewModel::updateCategory, viewModel::deleteCategory, viewModel::savePayee, viewModel::updatePayee, viewModel::deletePayee, viewModel::removeStarterData, viewModel::confirmPurchase, viewModel::discardPurchase, viewModel::clearMessage)
+            if (state.isUnlocked) MvpHome(state, viewModel::createAccount, viewModel::updateInvestmentAccount, viewModel::archiveInvestmentAccount, viewModel::saveInvestmentBalance, viewModel::updateInvestmentBalance, viewModel::contributeToInvestment, viewModel::deleteInvestmentSnapshot, viewModel::deleteTransaction, viewModel::updateTransaction, viewModel::recordTransaction, viewModel::setNeurodiverseMode, viewModel::setCurrency, viewModel::exportInterchangeReport, viewModel::exportNdfBackup, viewModel::importNdfBackup, viewModel::saveCategory, viewModel::updateCategory, viewModel::deleteCategory, viewModel::savePayee, viewModel::updatePayee, viewModel::deletePayee, viewModel::removeStarterData, viewModel::confirmPurchase, viewModel::discardPurchase, viewModel::clearMessage)
             else UnlockScreen(state.isLoading, state.message, viewModel::unlock, viewModel::clearMessage)
         }
     }
@@ -535,7 +553,7 @@ private fun UnlockScreen(loading: Boolean, message: String?, onUnlock: (String) 
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MvpHome(state: MvpFinanceState, onCreateCashAccount: () -> Unit, onCreateAccount: (String, AccountProductType, AssetClass, String, String) -> Unit, onUpdateInvestmentAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestmentAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onDismissMessage: () -> Unit) {
+private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String) -> Unit, onUpdateInvestmentAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestmentAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onDismissMessage: () -> Unit) {
     var showAccountSetup by remember { mutableStateOf(false) }
     var accountSetupProduct by remember { mutableStateOf(AccountProductType.CASH) }
     var addKhataMenuExpanded by remember { mutableStateOf(false) }
@@ -551,7 +569,7 @@ private fun MvpHome(state: MvpFinanceState, onCreateCashAccount: () -> Unit, onC
     if (showSettings) { SettingsScreen(state, onBack = { showSettings = false }, onNeurodiverseModeChanged = onNeurodiverseModeChanged, onCurrencyChanged = onCurrencyChanged, onExportInterchange = onExportInterchange, onExportNdf = onExportNdf, onImportNdf = onImportNdf, onSaveCategory = onSaveCategory, onUpdateCategory = onUpdateCategory, onDeleteCategory = onDeleteCategory, onSavePayee = onSavePayee, onUpdatePayee = onUpdatePayee, onDeletePayee = onDeletePayee, onRemoveStarterData = onRemoveStarterData); return }
     if (showNetWorth) { NetWorthDashboardScreen(state, onBack = { showNetWorth = false }, onOpenPortfolio = { showNetWorth = false; showPortfolio = true }); return }
     if (showPortfolio) {
-        PortfolioAndNetWorthScreen(state, onBack = { showPortfolio = false }, onOpenNetWorth = { showPortfolio = false; showNetWorth = true }, onAddInvestment = { accountSetupProduct = AccountProductType.MUTUAL_FUNDS; showAccountSetup = true; showPortfolio = false }, onRecordBalance = { showInvestmentCheckIn = true }, onRecordContribution = { showContribution = true }, onDeleteSnapshot = onDeleteInvestmentSnapshot, onUpdateSnapshot = onUpdateInvestmentBalance, onUpdateInvestment = onUpdateInvestmentAccount, onArchiveInvestment = onArchiveInvestmentAccount)
+        PortfolioAndNetWorthScreen(state, onBack = { showPortfolio = false }, onOpenNetWorth = { showPortfolio = false; showNetWorth = true }, onAddInvestment = { accountSetupProduct = AccountProductType.MUTUAL_FUNDS; showAccountSetup = true; showPortfolio = false }, onRecordBalance = { showInvestmentCheckIn = true }, onDeleteSnapshot = onDeleteInvestmentSnapshot, onUpdateSnapshot = onUpdateInvestmentBalance, onUpdateInvestment = onUpdateInvestmentAccount, onArchiveInvestment = onArchiveInvestmentAccount)
         if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showInvestmentCheckIn = false }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false })
         if (showContribution) InvestmentContributionDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showContribution = false }, onSave = { id, amount, payee -> onContributeToInvestment(id, amount, payee); showContribution = false })
         return
@@ -681,9 +699,7 @@ private fun MvpHome(state: MvpFinanceState, onCreateCashAccount: () -> Unit, onC
     if (showContribution) InvestmentContributionDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showContribution = false }, onSave = { id, amount, payee -> onContributeToInvestment(id, amount, payee); showContribution = false })
 }
 
-private data class DailyMoneyPulse(val date: LocalDate, val incomePaise: Long, val spentPaise: Long) {
-    val netPaise: Long get() = incomePaise - spentPaise
-}
+private data class DailyMoneyPulse(val date: LocalDate, val incomePaise: Long, val spentPaise: Long)
 
 @Composable
 private fun HomeMoneyPulse(transactions: List<TransactionEntity>, currencyCode: String) {
@@ -825,7 +841,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
             item { NeurodiverseModeToggle(state.neurodiverseModeEnabled, onNeurodiverseModeChanged) }
             item {
                 ExposedDropdownMenuBox(expanded = currencyExpanded, onExpandedChange = { currencyExpanded = !currencyExpanded }) {
-                    OutlinedTextField(state.currencyCode, {}, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(), readOnly = true, label = { Text("Currency") }, supportingText = { Text("More currencies will be added in a future update.") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(currencyExpanded) })
+                    OutlinedTextField(state.currencyCode, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Currency") }, supportingText = { Text("More currencies will be added in a future update.") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(currencyExpanded) })
                     ExposedDropdownMenu(expanded = currencyExpanded, onDismissRequest = { currencyExpanded = false }) {
                         DropdownMenuItem(text = { Text("Indian Rupee (INR) · ₹") }, onClick = { onCurrencyChanged("INR"); currencyExpanded = false })
                     }
@@ -1088,7 +1104,7 @@ private fun PrivacyAndPermissionsScreen(onBack: () -> Unit) {
             item { PrivacySection("Device feedback", "Vibration is used only for optional haptic confirmation around cooling-tank actions.") }
             item { PrivacySection("Backups", "Encrypted .ndf backup files should be stored only in locations you trust. Treat a backup and its passphrase as sensitive financial information.") }
             item { PrivacySection("Data sharing", "This release does not upload, sell, or share financial records. JSON exports and encrypted .ndf backups are created only after you select a destination through Android's system file picker.") }
-            item { OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PrivacyPolicyUrl))) }, modifier = Modifier.fillMaxWidth()) { Text("Open privacy policy") } }
+            item { OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, PrivacyPolicyUrl.toUri())) }, modifier = Modifier.fillMaxWidth()) { Text("Open privacy policy") } }
         }
     }
 }
@@ -1109,7 +1125,6 @@ private fun TransactionHistoryScreen(state: MvpFinanceState, onBack: () -> Unit,
     var range by remember { mutableStateOf(LedgerRange.MONTH) }
     var selectedAccountId by remember { mutableStateOf<String?>(null) }
     var selectedCategoryName by remember { mutableStateOf<String?>(null) }
-    var accountMenuExpanded by remember { mutableStateOf(false) }
     var transactionToDelete by remember { mutableStateOf<TransactionEntity?>(null) }
     var editingTransactionId by remember { mutableStateOf<String?>(null) }
     val accountNames = state.accounts.associate { it.id to it.name }
@@ -1139,7 +1154,7 @@ private fun TransactionHistoryScreen(state: MvpFinanceState, onBack: () -> Unit,
         .groupingBy { it.payee!! }
         .eachCount()
         .maxByOrNull { it.value }
-    val grouped = shown.groupBy { LocalDate.ofInstant(Instant.ofEpochMilli(it.occurredAtEpochMs), ZoneId.systemDefault()) }
+    val grouped = shown.groupBy { Instant.ofEpochMilli(it.occurredAtEpochMs).atZone(ZoneId.systemDefault()).toLocalDate() }
         .toSortedMap(compareByDescending { it })
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -1384,7 +1399,7 @@ private fun InlineVyavaharaEditor(transaction: TransactionEntity, payees: List<P
         OutlinedTextField(
             value = payee,
             onValueChange = { payee = it; payeeExpanded = true },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
             label = { Text("Vyakti") },
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(payeeExpanded) }
@@ -1411,7 +1426,7 @@ private fun InlineVyavaharaEditor(transaction: TransactionEntity, payees: List<P
         OutlinedTextField(
             value = category,
             onValueChange = { category = it; categoryExpanded = true },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
             label = { Text("Varga") },
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) }
@@ -1455,17 +1470,17 @@ private fun NewVyavaharaDialog(categories: List<CategoryEntity>, payees: List<Pa
                 }
                 OutlinedTextField(amount, { amount = it }, Modifier.fillMaxWidth(), label = { Text("Amount in ₹") }, singleLine = true)
                 ExposedDropdownMenuBox(expanded = accountExpanded, onExpandedChange = { accountExpanded = !accountExpanded }) {
-                    OutlinedTextField(selectedAccount?.name.orEmpty(), {}, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(), readOnly = true, label = { Text("Khata") }, placeholder = { Text("Choose a cash or credit Khata") }, singleLine = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(accountExpanded) })
+                    OutlinedTextField(selectedAccount?.name.orEmpty(), {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Khata") }, placeholder = { Text("Choose a cash or credit Khata") }, singleLine = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(accountExpanded) })
                     ExposedDropdownMenu(expanded = accountExpanded, onDismissRequest = { accountExpanded = false }) {
                         liquidAccounts.forEach { account -> DropdownMenuItem(text = { Text(account.name) }, onClick = { accountId = account.id; accountExpanded = false }) }
                     }
                 }
                 ExposedDropdownMenuBox(expanded = categoryExpanded, onExpandedChange = { categoryExpanded = !categoryExpanded }) {
-                    OutlinedTextField(category, { category = it; categoryExpanded = true }, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth(), label = { Text("Varga") }, singleLine = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) })
+                    OutlinedTextField(category, { category = it; categoryExpanded = true }, Modifier.menuAnchor().fillMaxWidth(), label = { Text("Varga") }, singleLine = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) })
                     ExposedDropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) { options.filter { it.name.contains(category, ignoreCase = true) }.forEach { option -> DropdownMenuItem(text = { IconifiedCategoryLabel(option.name, option.iconKey) }, onClick = { category = option.name; categoryExpanded = false }) } }
                 }
                 ExposedDropdownMenuBox(expanded = payeeExpanded, onExpandedChange = { payeeExpanded = !payeeExpanded }) {
-                    OutlinedTextField(payee, { payee = it; payeeExpanded = true }, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth(), label = { Text("Vyakti (optional)") }, singleLine = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(payeeExpanded) })
+                    OutlinedTextField(payee, { payee = it; payeeExpanded = true }, Modifier.menuAnchor().fillMaxWidth(), label = { Text("Vyakti (optional)") }, singleLine = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(payeeExpanded) })
                     ExposedDropdownMenu(expanded = payeeExpanded, onDismissRequest = { payeeExpanded = false }) {
                         payees.filter { it.name.contains(payee, ignoreCase = true) }.forEach { savedPayee ->
                             DropdownMenuItem(text = { Column { Text(savedPayee.name); savedPayee.defaultCategory?.let { Text("Default Varga: $it", style = MaterialTheme.typography.labelSmall) } } }, onClick = { payee = savedPayee.name; savedPayee.defaultCategory?.let { category = it }; payeeExpanded = false })
@@ -1663,7 +1678,7 @@ private fun NetWorthDashboardScreen(state: MvpFinanceState, onBack: () -> Unit, 
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Unit, onOpenNetWorth: () -> Unit, onAddInvestment: () -> Unit, onRecordBalance: () -> Unit, onRecordContribution: () -> Unit, onDeleteSnapshot: (String) -> Unit, onUpdateSnapshot: (String, String, String, String, String, String, String) -> Unit, onUpdateInvestment: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestment: (String) -> Unit) {
+private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Unit, onOpenNetWorth: () -> Unit, onAddInvestment: () -> Unit, onRecordBalance: () -> Unit, onDeleteSnapshot: (String) -> Unit, onUpdateSnapshot: (String, String, String, String, String, String, String) -> Unit, onUpdateInvestment: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestment: (String) -> Unit) {
     var editingSnapshotId by remember { mutableStateOf<String?>(null) }
     var editingInvestmentId by remember { mutableStateOf<String?>(null) }
     var investmentToArchive by remember { mutableStateOf<AccountEntity?>(null) }
@@ -1702,7 +1717,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                 val allocation = if (portfolioValue == 0L) 0.0 else snapshot.currentValuePaise * 100.0 / portfolioValue
                 ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) { Text(account?.name ?: "Investment", style = MaterialTheme.typography.titleSmall); Text(account?.productType?.name?.replace('_', ' ') ?: "Asset", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("Cost ${formatMoney(snapshot.totalCostPaise, state.currencyCode)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Column(Modifier.weight(1f)) { Text(account?.name ?: "Investment", style = MaterialTheme.typography.titleSmall); Text(account?.productType?.name?.replace('_', ' ') ?: "Asset", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); account?.benchmarkIndexName?.let { Text("Benchmark · $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }; Text("Cost ${formatMoney(snapshot.totalCostPaise, state.currencyCode)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Column(horizontalAlignment = androidx.compose.ui.Alignment.End) { Text(formatMoney(snapshot.currentValuePaise, state.currencyCode), style = MaterialTheme.typography.titleMedium); Text("${"%.1f".format(allocation)}% · ${formatMoney(snapshot.currentValuePaise - snapshot.totalCostPaise, state.currencyCode, includeSign = true)}", style = MaterialTheme.typography.bodySmall, color = if (snapshot.currentValuePaise < snapshot.totalCostPaise) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
                     }
                     account?.let { investment ->
@@ -1734,14 +1749,43 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                     }
                 } }
             }
-            item { Text("Nivesha history", style = MaterialTheme.typography.titleMedium) }
-            items(state.investmentHistory.size) { index ->
-                val snapshot = state.investmentHistory[index]
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Nivesha history", style = MaterialTheme.typography.titleMedium)
+                    Text("Dated cost and value check-ins", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            val history = state.investmentHistory.sortedWith(compareByDescending<InvestmentBalanceSnapshotEntity> { it.asOfEpochDay }.thenByDescending { it.createdAtEpochMs })
+            items(history.size) { index ->
+                val snapshot = history[index]
                 val account = state.accounts.firstOrNull { it.id == snapshot.accountId }
-                ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${account?.name ?: "Investment"} · ${LocalDate.ofEpochDay(snapshot.asOfEpochDay)}", style = MaterialTheme.typography.titleSmall)
-                    Text("Cost ${formatMoney(snapshot.totalCostPaise, state.currencyCode)} · Value ${formatMoney(snapshot.currentValuePaise, state.currencyCode)} · Contribution ${formatMoney(snapshot.netContributionPaise, state.currencyCode)}", style = MaterialTheme.typography.bodySmall)
-                    snapshot.note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                val gain = snapshot.currentValuePaise - snapshot.totalCostPaise
+                val gainColor = if (gain < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                ElevatedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                        Column(Modifier.weight(1f)) {
+                            Text(account?.name ?: "Investment", style = MaterialTheme.typography.titleSmall)
+                            Text(account?.productType?.name?.replace('_', ' ') ?: "Nivesha holding", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            account?.benchmarkIndexName?.let { benchmark -> Text("Benchmark · $benchmark", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
+                        }
+                        Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                            Text("AS ON", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            Text(LocalDate.ofEpochDay(snapshot.asOfEpochDay).toString(), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Box(Modifier.weight(1f)) { InvestmentHistoryMetric("COST", formatMoney(snapshot.totalCostPaise, state.currencyCode)) }
+                        Box(Modifier.weight(1f)) { InvestmentHistoryMetric("VALUE", formatMoney(snapshot.currentValuePaise, state.currencyCode), alignment = androidx.compose.ui.Alignment.CenterHorizontally) }
+                        Box(Modifier.weight(1f)) { InvestmentHistoryMetric("GAIN / LOSS", formatMoney(gain, state.currencyCode, includeSign = true), gainColor, androidx.compose.ui.Alignment.End) }
+                    }
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("Net contribution ${formatMoney(snapshot.netContributionPaise, state.currencyCode, includeSign = true)}") }
+                    )
+                    snapshot.note?.takeIf { it.isNotBlank() }?.let { note ->
+                        Text(note, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     if (editingSnapshotId == snapshot.id) {
                         InlineInvestmentSnapshotEditor(
                             snapshot = snapshot,
@@ -1754,7 +1798,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                     } else {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { editingSnapshotId = snapshot.id }) { Text("Modify") }
-                            TextButton(onClick = { onDeleteSnapshot(snapshot.id) }) { Text("Delete") }
+                            TextButton(onClick = { onDeleteSnapshot(snapshot.id) }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete") }
                         }
                     }
                 } }
@@ -1762,6 +1806,14 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
         }
     }
     investmentToArchive?.let { account -> AlertDialog(onDismissRequest = { investmentToArchive = null }, title = { Text("Archive Nivesha?") }, text = { Text("${account.name} will be hidden from active portfolio tracking. Its dated history remains safely in this encrypted database.") }, confirmButton = { Button(onClick = { onArchiveInvestment(account.id); investmentToArchive = null }) { Text("Archive") } }, dismissButton = { TextButton(onClick = { investmentToArchive = null }) { Text("Cancel") } }) }
+}
+
+@Composable
+private fun InvestmentHistoryMetric(label: String, value: String, color: Color = MaterialTheme.colorScheme.onSurface, alignment: androidx.compose.ui.Alignment.Horizontal = androidx.compose.ui.Alignment.Start) {
+    Column(horizontalAlignment = alignment) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleSmall, color = color, maxLines = 1)
+    }
 }
 
 @Composable
@@ -1777,11 +1829,11 @@ private fun InlineInvestmentEditor(account: AccountEntity, onCancel: () -> Unit,
     Text("Modify Nivesha", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nivesha name") }, singleLine = true)
     ExposedDropdownMenuBox(productExpanded, { productExpanded = !productExpanded }) {
-        OutlinedTextField(product.name.replace('_', ' '), {}, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(), readOnly = true, label = { Text("Product type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(productExpanded) })
+        OutlinedTextField(product.name.replace('_', ' '), {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Product type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(productExpanded) })
         ExposedDropdownMenu(productExpanded, { productExpanded = false }) { investmentProductTypes.forEach { type -> DropdownMenuItem(text = { Text(type.name.replace('_', ' ')) }, onClick = { product = type; assetClass = suggestedAssetClass(type); productExpanded = false }) } }
     }
     ExposedDropdownMenuBox(classExpanded, { classExpanded = !classExpanded }) {
-        OutlinedTextField(assetClass.name, {}, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(), readOnly = true, label = { Text("Asset class") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(classExpanded) })
+        OutlinedTextField(assetClass.name, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Asset class") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(classExpanded) })
         ExposedDropdownMenu(classExpanded, { classExpanded = false }) { AssetClass.entries.forEach { type -> DropdownMenuItem(text = { Text(type.name) }, onClick = { assetClass = type; classExpanded = false }) } }
     }
     OutlinedTextField(target, { target = it }, Modifier.fillMaxWidth(), label = { Text("Target allocation (%)") }, singleLine = true)
@@ -1861,7 +1913,7 @@ private fun AccountSetupDialog(initialProduct: AccountProductType = AccountProdu
                 Text("Set up a daily Khata, a liability, or an investment holding.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Khata name") }, singleLine = true)
                 ExposedDropdownMenuBox(expanded, { expanded = !expanded }) {
-                    OutlinedTextField(product.name.replace('_', ' '), {}, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(), readOnly = true, label = { Text("Khata type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
+                    OutlinedTextField(product.name.replace('_', ' '), {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Khata type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
                     ExposedDropdownMenu(expanded, { expanded = false }) {
                         Text("DAILY KHATAS", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelSmall)
                         listOf(AccountProductType.CASH, AccountProductType.BANK).forEach { type -> DropdownMenuItem(text = { Text(type.name.replace('_', ' ')) }, onClick = { product = type; assetClass = suggestedAssetClass(type); expanded = false }) }
@@ -1878,7 +1930,7 @@ private fun AccountSetupDialog(initialProduct: AccountProductType = AccountProdu
                 }
                 if (isInvestment) {
                     ExposedDropdownMenuBox(assetClassExpanded, { assetClassExpanded = !assetClassExpanded }) {
-                        OutlinedTextField(assetClass.name, {}, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(), readOnly = true, label = { Text("Asset class") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(assetClassExpanded) })
+                        OutlinedTextField(assetClass.name, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Asset class") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(assetClassExpanded) })
                         ExposedDropdownMenu(assetClassExpanded, { assetClassExpanded = false }) {
                             AssetClass.entries.forEach { type -> DropdownMenuItem(text = { Text(type.name) }, onClick = { assetClass = type; assetClassExpanded = false }) }
                         }
@@ -1914,7 +1966,7 @@ private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, onDism
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Enter the statement or market balance as on a date. This is a Nivesha valuation, not a Vyaya.", style = MaterialTheme.typography.bodySmall)
                 ExposedDropdownMenuBox(accountExpanded, { accountExpanded = !accountExpanded }) {
-                OutlinedTextField(account.name, {}, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(), readOnly = true, label = { Text("Nivesha") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(accountExpanded) })
+                OutlinedTextField(account.name, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Nivesha") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(accountExpanded) })
                     ExposedDropdownMenu(accountExpanded, { accountExpanded = false }) {
                         accounts.forEach { item -> DropdownMenuItem(text = { Text("${item.productType.name.replace('_', ' ')} · ${item.name}") }, onClick = { account = item; accountExpanded = false }) }
                     }
@@ -1966,7 +2018,7 @@ private fun InvestmentContributionDialog(accounts: List<AccountEntity>, onDismis
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("This records Vyaya from your cash/bank Khata and increases the selected Nivesha cost and value today.", style = MaterialTheme.typography.bodySmall)
             ExposedDropdownMenuBox(expanded, { expanded = !expanded }) {
-                OutlinedTextField(account.name, {}, Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(), readOnly = true, label = { Text("Nivesha") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
+                OutlinedTextField(account.name, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Nivesha") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
                 ExposedDropdownMenu(expanded, { expanded = false }) { accounts.forEach { item -> DropdownMenuItem(text = { Text(item.name) }, onClick = { account = item; expanded = false }) } }
             }
             OutlinedTextField(amount, { amount = it }, Modifier.fillMaxWidth(), label = { Text("Contribution in ₹") }, singleLine = true)

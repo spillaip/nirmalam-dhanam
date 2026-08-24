@@ -20,6 +20,8 @@ data class ConfigEntity(
 enum class AccountKind { SPENDING, CREDIT, SAVINGS, EMERGENCY, INVESTMENT }
 enum class AccountProductType { CASH, BANK, CREDIT_CARD, LOAN, PPF, EPF, NPS, SUPERANNUATION, MUTUAL_FUNDS, EQUITY, STOCKS, BULLION }
 enum class AssetClass { EQUITY, DEBT, RETIREMENT, CASH, GOLD, BULLION, OTHER }
+/** How a Nivesha should be compared with its declared benchmark. */
+enum class BenchmarkTrackingMethod { NONE, INDEX_TRACKING, ACTIVE_BENCHMARK, MANUAL }
 
 @Entity(tableName = "accounts", indices = [Index("kind")])
 data class AccountEntity(
@@ -32,6 +34,10 @@ data class AccountEntity(
     /** Target portfolio weight in basis points; 1% = 100 basis points. */
     val targetAllocationBps: Int = 0,
     val openingBalancePaise: Long = 0,
+    /** Official AMC/issuer benchmark. This is user-confirmed; names are never treated as authoritative. */
+    val benchmarkIndexName: String? = null,
+    val benchmarkTrackingMethod: BenchmarkTrackingMethod = BenchmarkTrackingMethod.NONE,
+    val benchmarkIsTotalReturn: Boolean = true,
     val isArchived: Boolean = false,
     val createdAtEpochMs: Long = System.currentTimeMillis()
 )

@@ -52,7 +52,7 @@ class NdfInterchangeExporter(private val context: Context, private val database:
             try {
                 val config = database.configDao().observe().first()
                 val accounts = database.accountDao().getActive()
-                val categories = database.categoryDao().getAll()
+                val categoryRows = database.categoryDao().getAll()
                 val payees = database.payeeDao().getAll()
                 val transactions = database.transactionDao().getAll()
                 val balances = database.investmentBalanceSnapshotDao().getAll()
@@ -61,7 +61,7 @@ class NdfInterchangeExporter(private val context: Context, private val database:
                     exportedAtEpochMs = System.currentTimeMillis(),
                     currencyCode = config?.currencyCode ?: "INR",
                     accounts = accounts.map { NdfAccountRecord(it.id, it.name, it.kind.name, it.productType.name, it.assetClass.name, it.targetAllocationBps, it.openingBalancePaise) },
-                    categories = categories.map { NdfCategoryRecord(it.id, it.name, it.transactionDirection.name, it.isSystem, it.iconKey) },
+                    categories = categoryRows.map { NdfCategoryRecord(it.id, it.name, it.transactionDirection.name, it.isSystem, it.iconKey) },
                     payees = payees.map { NdfPayeeRecord(it.id, it.name, it.defaultCategory, it.lastUsedEpochMs) },
                     transactions = transactions.map { NdfTransactionRecord(it.id, it.accountId, it.amountPaise, it.direction.name, it.payee, it.category, it.description, it.envelopeType?.name, it.occurredAtEpochMs, it.isHoldingTank, it.coolDownExpiryEpochMs) },
                     investmentBalances = balances.map { NdfInvestmentBalanceRecord(it.id, it.accountId, it.asOfEpochDay, it.totalCostPaise, it.currentValuePaise, it.netContributionPaise, it.note) },
@@ -69,7 +69,7 @@ class NdfInterchangeExporter(private val context: Context, private val database:
                 )
                 context.contentResolver.openOutputStream(destination, "wt")?.use { output -> output.write(json.encodeToString(document).encodeToByteArray()) }
                     ?: error("Unable to open the selected JSON export destination.")
-                NdfInterchangeResult.Exported(destination, accounts.size + categories.size + payees.size + transactions.size + balances.size + netWorth.size)
+                NdfInterchangeResult.Exported(destination, accounts.size + categoryRows.size + payees.size + transactions.size + balances.size + netWorth.size)
             } catch (t: Throwable) {
                 NdfInterchangeResult.Failure("JSON report export failed; local data was not changed.", t)
             }

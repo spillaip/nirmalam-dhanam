@@ -14,15 +14,15 @@ import java.io.File
 /** Exercises every supported on-device schema starting point through the production migration chain. */
 @RunWith(AndroidJUnit4::class)
 class NirmalamDatabaseMigrationTest {
-    @Test fun allVersionsOneThroughEightMigrateToNine() {
-        (1..8).forEach { sourceVersion ->
+    @Test fun allVersionsOneThroughNineMigrateToTen() {
+        (1..9).forEach { sourceVersion ->
             val name = "migration-$sourceVersion.db"
             database(name, 1).use { it.writableDatabase }
             if (sourceVersion > 1) database(name, sourceVersion).use { it.writableDatabase }
-            database(name, 9).use { helper ->
+            database(name, 10).use { helper ->
                 val database = helper.writableDatabase
                 assertHasColumns(database, "nirmalam_dhanam_config", "neurodiverseModeEnabled", "starterDataRemoved")
-                assertHasColumns(database, "accounts", "productType", "assetClass", "targetAllocationBps")
+                assertHasColumns(database, "accounts", "productType", "assetClass", "targetAllocationBps", "benchmarkIndexName", "benchmarkTrackingMethod", "benchmarkIsTotalReturn")
                 assertHasColumns(database, "transactions", "category", "payee", "description")
                 assertHasColumns(database, "categories", "iconKey")
                 assertTrue(tableExists(database, "payees"))

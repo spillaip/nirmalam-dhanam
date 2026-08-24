@@ -11,7 +11,7 @@ Nirmalam Dhanam is a local-first, privacy-centred personal finance app for Andro
 - Check in dated investment cost and value balances for portfolio and net-worth tracking.
 - Use **Prarambha** for true available cash, safe-to-spend today, cooling-tank decisions, a local seven-day Money Pulse chart, and a compact portfolio summary.
 - Use **Vyavahara** for searchable money activity, account/category filters, inline modifications, reports, and a local-only Spend Map.
-- Use **Nivesha** for investment asset CRUD, dated monthly cost/value check-ins, allocation targets, and performance context.
+- Use **Nivesha** for investment asset CRUD, dated monthly cost/value check-ins, allocation targets, performance context, and locally suggested tracking benchmarks for recognised index funds, ETFs, equities, and gold holdings.
 - Use **Sampada** for a live net-worth dashboard with assets, liabilities, allocation, and trend.
 - Use **Vinyasa** for neurodiverse mode, currency, privacy guidance, Varga, and Vyakti management.
 - Pause wants purchases in a 48-hour cooling tank, with haptic confirmation actions.
@@ -34,7 +34,7 @@ Kotlin, Coroutines, StateFlow, KotlinX Serialization, Jetpack Compose Material 3
 
 ## Project status
 
-This repository contains Version 1.3.0: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, encrypted backup/restore controls, and Material 3 screens. The public manifest targets Android API 36 and does not declare restricted SMS permissions. Before publishing, configure Play App Signing, host the included privacy-policy page at a stable HTTPS URL, complete the Play Console declarations, and complete accessibility/device testing.
+This repository contains Version 1.3.0: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, encrypted backup/restore controls, and Material 3 screens. The Room schema is currently version 10. The public manifest targets Android API 36 and does not declare restricted SMS permissions. Before publishing, configure Play App Signing, host the included privacy-policy page at a stable HTTPS URL, complete the Play Console declarations, and complete accessibility/device testing.
 
 ## Local build
 
@@ -49,6 +49,8 @@ This repository contains Version 1.3.0: local encrypted finance tracking, income
 ## Security notes
 
 The user's passphrase must be collected only after device authentication and supplied directly to the database unlock/backup operation. Do not log passphrases, transaction data, or raw SMS content. `.ndf` files remain encrypted, but should still be stored only in locations the user trusts.
+
+Benchmark suggestions are local metadata only: recognised holding names can be associated with an appropriate Indian market index (or a domestic gold benchmark), but the app does not fetch prices or transmit portfolio data. Confirm the scheme's official benchmark from its AMC or issuer before relying on a comparison.
 
 See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange contracts.
 

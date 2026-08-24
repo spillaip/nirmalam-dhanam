@@ -6,19 +6,23 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.nirmalamgroup.nirmalamdhanam.ui.components.AntiPanicPortfolioContainer
 import com.nirmalamgroup.nirmalamdhanam.ui.components.CoolDownTankCard
 import com.nirmalamgroup.nirmalamdhanam.ui.components.NeurodiverseModeToggle
 
 @Composable
-fun TabletLandscapeScreen(state: FinanceDashboardState, portfolioValuePaise: Long, onTankConfirm: (String) -> Unit, onTankDismiss: (String) -> Unit, onNeurodiverseModeChange: (Boolean) -> Unit = {}, modifier: Modifier = Modifier) {
+fun TabletLandscapeScreen(state: FinanceDashboardState, portfolioValuePaise: Long, onTankConfirm: (String) -> Unit, onTankDismiss: (String) -> Unit, modifier: Modifier = Modifier, onNeurodiverseModeChange: (Boolean) -> Unit = {}) {
     Row(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(Modifier.weight(.35f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Today’s cashflow", style = MaterialTheme.typography.headlineSmall)
@@ -36,6 +40,17 @@ fun TabletLandscapeScreen(state: FinanceDashboardState, portfolioValuePaise: Lon
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(state.holdingTransactions.size) { i -> CoolDownTankCard(state.holdingTransactions[i], onConfirm = { onTankConfirm(it.id) }, onDismiss = { onTankDismiss(it.id) }) } }
         }
     }
+}
+
+@Preview(widthDp = 1280, heightDp = 800)
+@Composable
+private fun TabletLandscapeScreenPreview() {
+    TabletLandscapeScreen(
+        state = FinanceDashboardState(),
+        portfolioValuePaise = 0,
+        onTankConfirm = {},
+        onTankDismiss = {}
+    )
 }
 @Composable private fun NeurodiverseDailyFocus(safeToSpendPaise: Long?) = ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text("One thing to focus on", style = MaterialTheme.typography.labelLarge); Text("Safe to spend today", style = MaterialTheme.typography.titleMedium); Text(safeToSpendPaise?.let { "₹ %.2f".format(it / 100.0) } ?: "Set a daily envelope", style = MaterialTheme.typography.headlineSmall) } }
 @Composable private fun NumericEntryPad() { var laborMode by rememberSaveable { mutableStateOf(false) }; ElevatedCard { Column(Modifier.padding(12.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Text(if (laborMode) "⏳ Labor" else "₹ Amount", Modifier.weight(1f)); Switch(laborMode, { laborMode = it }) }; Text("1   2   3\n4   5   6\n7   8   9\n    0", style = MaterialTheme.typography.titleLarge) } } }
