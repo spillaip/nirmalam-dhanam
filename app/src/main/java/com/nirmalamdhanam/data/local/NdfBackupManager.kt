@@ -50,6 +50,31 @@ sealed interface NdfResult {
     data class Failure(val message: String, val cause: Throwable? = null) : NdfResult
 }
 
+/** Integrity primitive deliberately independent of Android storage APIs so it is unit-testable. */
+object NdfBackupIntegrity {
+    fun sha256Hex(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes)
+        .joinToString("") { "%02x".format(it) }
+
+    fun sha256Hex(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        FileInputStream(file).use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    fun matchesExpected(bytes: ByteArray, expectedHex: String): Boolean =
+        sha256Hex(bytes).equals(expectedHex, ignoreCase = true)
+
+    fun matchesExpected(file: File, expectedHex: String): Boolean =
+        sha256Hex(file).equals(expectedHex, ignoreCase = true)
+}
+
 /**
  * `.ndf` is a ZIP container. Its payload remains SQLCipher-encrypted; compression is only
  * packaging and must not be treated as encryption. A backup can be imported on another device
@@ -70,7 +95,16 @@ class NdfBackupManager(
                 check(source.isFile && source.length() > 0) { "No local database is available to export." }
                 // Ensure the supplied passphrase can open this database. Without this check, a
                 // mistyped export passphrase would create a backup that cannot later be restored.
-                validateEncryptedDatabase(source, passphrase.copyOf(), keyManager.salt)
+                val verificationFailure = runCatching {
+                    validateEncryptedDatabase(source, passphrase.copyOf(), keyManager.salt)
+                }.exceptionOrNull()
+                if (verificationFailure != null) {
+                    passphrase.fill('\u0000')
+                    return@withLock NdfResult.Failure(
+                        "Could not verify the database passphrase. No backup was created; check the passphrase and try again.",
+                        verificationFailure
+                    )
+                }
                 database.withTransaction { /* waits for all Room writes already in progress */ }
                 database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { it.moveToFirst() }
                 val manifest = NdfManifest(
@@ -105,9 +139,19 @@ class NdfBackupManager(
             try {
                 val manifest = unpack(source, staging)
                 validateManifest(manifest)
-                manifest.databaseSha256?.let { expected -> require(staging.sha256Hex().equals(expected, ignoreCase = true)) { "Backup integrity check failed." } }
+                manifest.databaseSha256?.let { expected -> require(NdfBackupIntegrity.matchesExpected(staging, expected)) { "Backup integrity check failed." } }
                 val importedSalt = Base64.decode(manifest.kdfSaltBase64, Base64.NO_WRAP)
-                validateEncryptedDatabase(staging, passphrase, importedSalt)
+                val verificationFailure = runCatching {
+                    validateEncryptedDatabase(staging, passphrase, importedSalt)
+                }.exceptionOrNull()
+                if (verificationFailure != null) {
+                    staging.delete()
+                    passphrase.fill('\u0000')
+                    return@withLock NdfResult.Failure(
+                        "Could not unlock this backup. Check its passphrase and select the correct .ndf file; your current local data was left unchanged.",
+                        verificationFailure
+                    )
+                }
                 closeActiveDatabase()
                 replaceDatabaseAtomically(staging, importedSalt)
                 NdfResult.Imported(context.getDatabasePath(NirmalamDatabase.FILE_NAME).length())

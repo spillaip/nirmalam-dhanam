@@ -15,7 +15,7 @@ Nirmalam Dhanam is a local-first, privacy-centred personal finance app for Andro
 - Use **Sampada** for a live net-worth dashboard with assets, liabilities, allocation, and trend.
 - Use **Vinyasa** for neurodiverse mode, currency, privacy guidance, Varga, and Vyakti management.
 - Pause wants purchases in a 48-hour cooling tank, with haptic confirmation actions.
-- Use the encrypted `.ndf` backup engine for local export/import integration. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata; Vinyasa backup controls are the next UI integration step.
+- Export and restore encrypted `.ndf` backups from Vinyasa. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata; the database passphrase is verified before export and required again for restore.
 - Produce a versioned, read-only JSON interchange report for local Python/Java analysis; values use integer paise to avoid precision loss.
 
 ## Screen map
@@ -39,7 +39,7 @@ This repository contains Version 1.3.0: local encrypted finance tracking, income
 ## Local build
 
 1. Install JDK 17 and set `JAVA_HOME`.
-2. Install Android SDK Platform 35 through Android Studio.
+2. Install Android SDK Platform 36 through Android Studio.
 3. Run:
 
    ```powershell
@@ -52,8 +52,14 @@ The user's passphrase must be collected only after device authentication and sup
 
 See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange contracts.
 
+## Release verification
+
+[RELEASE_DATA_SAFETY_TEST.md](RELEASE_DATA_SAFETY_TEST.md) covers the required real-database regression check for removing starter data, backup passphrase recovery, and empty-state checks. Run it against a copy of a real pre-release database; do not use a customer's only database as a test fixture.
+
+[QA_MATRIX.md](QA_MATRIX.md) is the required API 26/29/33/35/36, accessibility, rotation, tablet, neurodiverse-mode, and large-dataset release matrix.
+
 ## Release administration
 
-- [Privacy policy](docs/privacy-policy.html) — public policy source linked from Vinyasa.
+- [Privacy policy](https://spillaip.github.io/nirmalam-dhanam/privacy-policy.html) — stable GitHub Pages URL linked from Vinyasa. The [source](docs/privacy-policy.html) deploys automatically from `main`; enable **Settings → Pages → GitHub Actions** once in GitHub to activate the first deployment.
 - [Play Console submission checklist](PLAY_CONSOLE_SUBMISSION.md) — Data safety, app-content, and content-rating preparation.
-- [Upload-key template](keystore.properties.example) — copy it locally as `keystore.properties`; never commit the real key or passwords.
+- Upload signing is configured locally with a 4,096-bit RSA key at `release-signing/nirmalam-upload-key.jks` and ignored `keystore.properties`. Back up both into a password manager or encrypted vault; never commit either file. Enable Play App Signing when uploading the first AAB.

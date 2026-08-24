@@ -25,7 +25,7 @@ android { namespace = "com.nirmalamgroup.nirmalamdhanam"; compileSdk = 36
     signingConfigs {
         create("release") {
             if (!uploadStoreFile.isNullOrBlank() && !uploadStorePassword.isNullOrBlank() && !uploadKeyAlias.isNullOrBlank() && !uploadKeyPassword.isNullOrBlank()) {
-                storeFile = file(uploadStoreFile)
+                storeFile = rootProject.file(uploadStoreFile)
                 storePassword = uploadStorePassword
                 keyAlias = uploadKeyAlias
                 keyPassword = uploadKeyPassword
@@ -71,4 +71,10 @@ dependencies {
     implementation("androidx.sqlite:sqlite:2.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.2.10")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
 }

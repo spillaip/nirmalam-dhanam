@@ -34,9 +34,14 @@ abstract class NirmalamDatabase : RoomDatabase() {
             val key = DatabaseKeyManager(context.applicationContext).derive(passphrase)
             return Room.databaseBuilder(context, NirmalamDatabase::class.java, FILE_NAME)
                 .openHelperFactory(SupportOpenHelperFactory(key))
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(*migrationsForTesting())
                 .build()
         }
+        /** Used by the instrumentation suite so it exercises the exact production migration chain. */
+        fun migrationChain(): Array<Migration> = arrayOf(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9
+        )
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN neurodiverseModeEnabled INTEGER NOT NULL DEFAULT 0")
