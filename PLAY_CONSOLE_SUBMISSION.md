@@ -12,9 +12,9 @@
 
 Complete the form against the exact AAB uploaded to Play Console.
 
-- **Data collected by the developer:** No. Financial information remains on device and is not transmitted to the developer or a third party.
-- **Data shared:** No.
-- **Security:** financial records are encrypted at rest in SQLCipher. Data is not transmitted by the app.
+- **Data collected by the developer:** No. Financial information remains on device and is not transmitted to the developer.
+- **Data shared:** The optional Nirmalam AI BYOL feature sends a user-triggered, minimised aggregate finance summary to the provider selected by the user. It excludes raw transactions, payees, descriptions, and account identifiers. Complete the Data safety form against the exact chosen provider SDK/API behaviour before release.
+- **Security:** financial records are encrypted at rest in SQLCipher. The optional BYOL provider API key is protected with Android Keystore and is excluded from database and backup files.
 - **Deletion:** users can delete individual records, remove starter data, or uninstall the app to remove local app data. There is no online account.
 - **Optional exports:** users explicitly select a file destination via the Android Storage Access Framework. JSON is plaintext; `.ndf` is encrypted. These user-directed exports are not developer collection.
 

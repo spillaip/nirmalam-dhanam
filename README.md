@@ -9,11 +9,12 @@ Nirmalam Dhanam is a local-first, privacy-centred personal finance app for Andro
 - Set up cash, bank, credit, loan, retirement, and investment Khatas: PPF, EPF, NPS, superannuation, mutual funds/ETFs, direct stocks, and bullion.
 - Start with optional India-oriented Varga and Vyakti suggestions for everyday merchants, banks, LPG/gas, electricity providers, telecom, travel, and common income sources.
 - Check in dated investment cost and value balances for portfolio and net-worth tracking.
-- Use **Prarambha** for true available cash, safe-to-spend today, cooling-tank decisions, a local seven-day Money Pulse chart, and a compact portfolio summary.
+- Use **Prarambha** for true available cash, safe-to-spend today, cooling-tank decisions, local balance and portfolio charts, a seven-day Money Pulse chart, and a compact portfolio summary.
 - Use **Vyavahara** for searchable money activity, account/category filters, inline modifications, reports, and a local-only Spend Map.
-- Use **Nivesha** for investment asset CRUD, dated monthly cost/value check-ins, allocation targets, performance context, and locally suggested tracking benchmarks for recognised index funds, ETFs, equities, and gold holdings.
+- Use **Nivesha** for investment asset CRUD, dated monthly cost/value check-ins, cost-vs-value charts, ABS/XIRR performance context, and locally suggested tracking benchmarks for recognised index funds, ETFs, equities, and gold holdings.
 - Use **Sampada** for a live net-worth dashboard with assets, liabilities, allocation, and trend.
 - Use **Vinyasa** for neurodiverse mode, currency, privacy guidance, Varga, and Vyakti management.
+- Optionally enable **Nirmalam AI** in Vinyasa with your own OpenAI-compatible provider, model, and API key. It offers only fixed insight buttons—not chat—and sends a minimised aggregate summary only after you press one.
 - Pause wants purchases in a 48-hour cooling tank, with haptic confirmation actions.
 - Export and restore encrypted `.ndf` backups from Vinyasa. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata; the database passphrase is verified before export and required again for restore.
 - Produce a versioned, read-only JSON interchange report for local Python/Java analysis; values use integer paise to avoid precision loss.
@@ -34,7 +35,7 @@ Kotlin, Coroutines, StateFlow, KotlinX Serialization, Jetpack Compose Material 3
 
 ## Project status
 
-This repository contains Version 1.3.0: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, encrypted backup/restore controls, and Material 3 screens. The Room schema is currently version 10. The public manifest targets Android API 36 and does not declare restricted SMS permissions. Before publishing, configure Play App Signing, host the included privacy-policy page at a stable HTTPS URL, complete the Play Console declarations, and complete accessibility/device testing.
+This repository contains Version 1.3.0 release-candidate work: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, portfolio and balance charts, encrypted backup/restore controls, optional BYOL Nirmalam AI insights, and Material 3 screens. The Room schema is currently version 10. The public manifest targets Android API 36 and does not declare restricted SMS permissions. Before publishing, configure Play App Signing, host the included privacy-policy page at a stable HTTPS URL, complete the Play Console declarations, and complete final accessibility/device testing.
 
 ## Local build
 
@@ -48,7 +49,7 @@ This repository contains Version 1.3.0: local encrypted finance tracking, income
 
 ## Security notes
 
-The user's passphrase must be collected only after device authentication and supplied directly to the database unlock/backup operation. Do not log passphrases, transaction data, or raw SMS content. `.ndf` files remain encrypted, but should still be stored only in locations the user trusts.
+The user's passphrase must be collected only after device authentication and supplied directly to the database unlock/backup operation. Do not log passphrases, transaction data, or raw SMS content. `.ndf` files remain encrypted, but should still be stored only in locations the user trusts. Nirmalam AI is disabled by default; its BYOL key is protected with Android Keystore and is never included in Room, JSON exports, or `.ndf` backups. Enabling it sends an aggregate summary to the provider the user chooses only when a fixed insight button is pressed.
 
 Benchmark suggestions are local metadata only: recognised holding names can be associated with an appropriate Indian market index (or a domestic gold benchmark), but the app does not fetch prices or transmit portfolio data. Confirm the scheme's official benchmark from its AMC or issuer before relying on a comparison.
 
