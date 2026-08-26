@@ -14,9 +14,9 @@ import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
-class DatabaseConverters { @TypeConverter fun fromAccountKind(v: AccountKind) = v.name; @TypeConverter fun toAccountKind(v: String) = AccountKind.valueOf(v); @TypeConverter fun fromProductType(v: AccountProductType) = v.name; @TypeConverter fun toProductType(v: String) = AccountProductType.valueOf(v); @TypeConverter fun fromAssetClass(v: AssetClass) = v.name; @TypeConverter fun toAssetClass(v: String) = AssetClass.valueOf(v); @TypeConverter fun fromBenchmarkTrackingMethod(v: BenchmarkTrackingMethod) = v.name; @TypeConverter fun toBenchmarkTrackingMethod(v: String) = BenchmarkTrackingMethod.valueOf(v); @TypeConverter fun fromDirection(v: TransactionDirection) = v.name; @TypeConverter fun toDirection(v: String) = TransactionDirection.valueOf(v); @TypeConverter fun fromEnvelope(v: EnvelopeType?) = v?.name; @TypeConverter fun toEnvelope(v: String?) = v?.let(EnvelopeType::valueOf) }
+class DatabaseConverters { @TypeConverter fun fromAccountKind(v: AccountKind) = v.name; @TypeConverter fun toAccountKind(v: String) = AccountKind.valueOf(v); @TypeConverter fun fromProductType(v: AccountProductType) = v.name; @TypeConverter fun toProductType(v: String) = AccountProductType.valueOf(v); @TypeConverter fun fromAssetClass(v: AssetClass) = v.name; @TypeConverter fun toAssetClass(v: String) = AssetClass.valueOf(v); @TypeConverter fun fromBenchmarkTrackingMethod(v: BenchmarkTrackingMethod) = v.name; @TypeConverter fun toBenchmarkTrackingMethod(v: String) = BenchmarkTrackingMethod.valueOf(v); @TypeConverter fun fromDirection(v: TransactionDirection) = v.name; @TypeConverter fun toDirection(v: String) = TransactionDirection.valueOf(v); @TypeConverter fun fromEnvelope(v: EnvelopeType?) = v?.name; @TypeConverter fun toEnvelope(v: String?) = v?.let(EnvelopeType::valueOf); @TypeConverter fun fromDateFormatPreference(v: DateFormatPreference) = v.name; @TypeConverter fun toDateFormatPreference(v: String) = DateFormatPreference.valueOf(v) }
 
-@Database(entities = [ConfigEntity::class, AccountEntity::class, TransactionEntity::class, EnvelopeEntity::class, CategoryEntity::class, PayeeEntity::class, InvestmentBalanceSnapshotEntity::class, NetWorthSnapshotEntity::class], version = 10, exportSchema = false)
+@Database(entities = [ConfigEntity::class, AccountEntity::class, TransactionEntity::class, EnvelopeEntity::class, CategoryEntity::class, PayeeEntity::class, InvestmentBalanceSnapshotEntity::class, NetWorthSnapshotEntity::class], version = 11, exportSchema = false)
 @TypeConverters(DatabaseConverters::class)
 abstract class NirmalamDatabase : RoomDatabase() {
     abstract fun configDao(): ConfigDao
@@ -40,67 +40,72 @@ abstract class NirmalamDatabase : RoomDatabase() {
         /** Used by the instrumentation suite so it exercises the exact production migration chain. */
         fun migrationChain(): Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11
         )
         private val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN neurodiverseModeEnabled INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN neurodiverseModeEnabled INTEGER NOT NULL DEFAULT 0")
             }
         }
         /** Adds user-authored transaction context without changing any existing balances. */
         private val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE transactions ADD COLUMN category TEXT")
-                database.execSQL("ALTER TABLE transactions ADD COLUMN payee TEXT")
-                database.execSQL("ALTER TABLE transactions ADD COLUMN description TEXT")
-                database.execSQL("UPDATE transactions SET payee = merchant WHERE payee IS NULL AND merchant IS NOT NULL")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN category TEXT")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN payee TEXT")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN description TEXT")
+                db.execSQL("UPDATE transactions SET payee = merchant WHERE payee IS NULL AND merchant IS NOT NULL")
             }
         }
         private val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE accounts ADD COLUMN productType TEXT NOT NULL DEFAULT 'CASH'")
-                database.execSQL("CREATE TABLE IF NOT EXISTS categories (id TEXT NOT NULL, name TEXT NOT NULL, transactionDirection TEXT NOT NULL, isSystem INTEGER NOT NULL, PRIMARY KEY(id))")
-                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categories_name ON categories(name)")
-                database.execSQL("CREATE TABLE IF NOT EXISTS payees (id TEXT NOT NULL, name TEXT NOT NULL, defaultCategory TEXT, lastUsedEpochMs INTEGER NOT NULL, PRIMARY KEY(id))")
-                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_payees_name ON payees(name)")
-                database.execSQL("UPDATE accounts SET productType = CASE kind WHEN 'INVESTMENT' THEN 'MUTUAL_FUNDS' ELSE 'CASH' END")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE accounts ADD COLUMN productType TEXT NOT NULL DEFAULT 'CASH'")
+                db.execSQL("CREATE TABLE IF NOT EXISTS categories (id TEXT NOT NULL, name TEXT NOT NULL, transactionDirection TEXT NOT NULL, isSystem INTEGER NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categories_name ON categories(name)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS payees (id TEXT NOT NULL, name TEXT NOT NULL, defaultCategory TEXT, lastUsedEpochMs INTEGER NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_payees_name ON payees(name)")
+                db.execSQL("UPDATE accounts SET productType = CASE kind WHEN 'INVESTMENT' THEN 'MUTUAL_FUNDS' ELSE 'CASH' END")
             }
         }
         private val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("CREATE TABLE IF NOT EXISTS investment_balance_snapshots (id TEXT NOT NULL, accountId TEXT NOT NULL, asOfEpochDay INTEGER NOT NULL, totalCostPaise INTEGER NOT NULL, currentValuePaise INTEGER NOT NULL, netContributionPaise INTEGER NOT NULL, note TEXT, createdAtEpochMs INTEGER NOT NULL, PRIMARY KEY(id))")
-                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_investment_balance_snapshots_accountId_asOfEpochDay ON investment_balance_snapshots(accountId, asOfEpochDay)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS index_investment_balance_snapshots_asOfEpochDay ON investment_balance_snapshots(asOfEpochDay)")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS investment_balance_snapshots (id TEXT NOT NULL, accountId TEXT NOT NULL, asOfEpochDay INTEGER NOT NULL, totalCostPaise INTEGER NOT NULL, currentValuePaise INTEGER NOT NULL, netContributionPaise INTEGER NOT NULL, note TEXT, createdAtEpochMs INTEGER NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_investment_balance_snapshots_accountId_asOfEpochDay ON investment_balance_snapshots(accountId, asOfEpochDay)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_investment_balance_snapshots_asOfEpochDay ON investment_balance_snapshots(asOfEpochDay)")
             }
         }
         private val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("CREATE TABLE IF NOT EXISTS net_worth_snapshots (id TEXT NOT NULL, asOfEpochDay INTEGER NOT NULL, netWorthPaise INTEGER NOT NULL, portfolioValuePaise INTEGER NOT NULL, createdAtEpochMs INTEGER NOT NULL, PRIMARY KEY(id))")
-                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_net_worth_snapshots_asOfEpochDay ON net_worth_snapshots(asOfEpochDay)")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS net_worth_snapshots (id TEXT NOT NULL, asOfEpochDay INTEGER NOT NULL, netWorthPaise INTEGER NOT NULL, portfolioValuePaise INTEGER NOT NULL, createdAtEpochMs INTEGER NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_net_worth_snapshots_asOfEpochDay ON net_worth_snapshots(asOfEpochDay)")
             }
         }
         private val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE accounts ADD COLUMN assetClass TEXT NOT NULL DEFAULT 'CASH'")
-                database.execSQL("ALTER TABLE accounts ADD COLUMN targetAllocationBps INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("UPDATE accounts SET assetClass = CASE productType WHEN 'EQUITY' THEN 'EQUITY' WHEN 'MUTUAL_FUNDS' THEN 'EQUITY' WHEN 'PPF' THEN 'DEBT' WHEN 'EPF' THEN 'RETIREMENT' WHEN 'NPS' THEN 'RETIREMENT' WHEN 'SUPERANNUATION' THEN 'RETIREMENT' ELSE 'CASH' END")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE accounts ADD COLUMN assetClass TEXT NOT NULL DEFAULT 'CASH'")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN targetAllocationBps INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE accounts SET assetClass = CASE productType WHEN 'EQUITY' THEN 'EQUITY' WHEN 'MUTUAL_FUNDS' THEN 'EQUITY' WHEN 'PPF' THEN 'DEBT' WHEN 'EPF' THEN 'RETIREMENT' WHEN 'NPS' THEN 'RETIREMENT' WHEN 'SUPERANNUATION' THEN 'RETIREMENT' ELSE 'CASH' END")
             }
         }
         private val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE categories ADD COLUMN iconKey TEXT")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE categories ADD COLUMN iconKey TEXT")
             }
         }
         private val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN starterDataRemoved INTEGER NOT NULL DEFAULT 0")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN starterDataRemoved INTEGER NOT NULL DEFAULT 0")
             }
         }
         private val MIGRATION_9_10 = object : Migration(9, 10) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkIndexName TEXT")
-                database.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkTrackingMethod TEXT NOT NULL DEFAULT 'NONE'")
-                database.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkIsTotalReturn INTEGER NOT NULL DEFAULT 1")
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkIndexName TEXT")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkTrackingMethod TEXT NOT NULL DEFAULT 'NONE'")
+                db.execSQL("ALTER TABLE accounts ADD COLUMN benchmarkIsTotalReturn INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN dateFormatPreference TEXT NOT NULL DEFAULT 'DEVICE_LOCALE'")
             }
         }
     }

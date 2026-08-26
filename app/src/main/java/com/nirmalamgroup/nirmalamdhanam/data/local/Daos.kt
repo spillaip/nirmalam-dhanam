@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun save(config: ConfigEntity)
     @Query("UPDATE nirmalam_dhanam_config SET neurodiverseModeEnabled = :enabled WHERE id = 1") suspend fun setNeurodiverseMode(enabled: Boolean): Int
     @Query("UPDATE nirmalam_dhanam_config SET currencyCode = :currencyCode WHERE id = 1") suspend fun setCurrencyCode(currencyCode: String): Int
+    @Query("UPDATE nirmalam_dhanam_config SET dateFormatPreference = :preference WHERE id = 1") suspend fun setDateFormatPreference(preference: DateFormatPreference): Int
     @Query("UPDATE nirmalam_dhanam_config SET starterDataRemoved = :removed WHERE id = 1") suspend fun setStarterDataRemoved(removed: Boolean): Int
 }
 

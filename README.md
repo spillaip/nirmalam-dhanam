@@ -13,7 +13,7 @@ Nirmalam Dhanam is a local-first, privacy-centred personal finance app for Andro
 - Use **Vyavahara** for searchable money activity, account/category filters, inline modifications, reports, and a local-only Spend Map.
 - Use **Nivesha** for investment asset CRUD, dated monthly cost/value check-ins, cost-vs-value charts, ABS/XIRR performance context, and locally suggested tracking benchmarks for recognised index funds, ETFs, equities, and gold holdings.
 - Use **Sampada** for a live net-worth dashboard with assets, liabilities, allocation, and trend.
-- Use **Vinyasa** for neurodiverse mode, currency, privacy guidance, Varga, and Vyakti management.
+- Use **Vinyasa** for neurodiverse mode, currency, date format, privacy guidance, Varga, Vyakti, and About management.
 - Optionally enable **Nirmalam AI** in Vinyasa with your own OpenAI-compatible provider, model, and API key. It offers only fixed insight buttons—not chat—and sends a minimised aggregate summary only after you press one.
 - Pause wants purchases in a 48-hour cooling tank, with haptic confirmation actions.
 - Export and restore encrypted `.ndf` backups from Vinyasa. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata; the database passphrase is verified before export and required again for restore.
@@ -35,7 +35,7 @@ Kotlin, Coroutines, StateFlow, KotlinX Serialization, Jetpack Compose Material 3
 
 ## Project status
 
-This repository contains Version 1.3.0 release-candidate work: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, portfolio and balance charts, encrypted backup/restore controls, optional BYOL Nirmalam AI insights, and Material 3 screens. The Room schema is currently version 10. The public manifest targets Android API 36 and does not declare restricted SMS permissions. Before publishing, configure Play App Signing, host the included privacy-policy page at a stable HTTPS URL, complete the Play Console declarations, and complete final accessibility/device testing.
+This repository contains Version 1.3.0 release-candidate work: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, portfolio and balance charts, encrypted backup/restore controls, optional BYOL Nirmalam AI insights, and Material 3 screens. The Room schema is currently version 11. The public manifest targets Android API 36 and does not declare restricted SMS permissions. The app now supports a device-locale default date format with explicit override options from Vinyasa. Before publishing, configure Play App Signing, host the included privacy-policy page at a stable HTTPS URL, complete the Play Console declarations, and complete final accessibility/device testing.
 
 ## Local build
 
@@ -63,6 +63,6 @@ See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange con
 
 ## Release administration
 
-- [Privacy policy](https://spillaip.github.io/nirmalam-dhanam/privacy-policy.html) — stable GitHub Pages URL linked from Vinyasa. The [source](docs/privacy-policy.html) deploys automatically from `main`; enable **Settings → Pages → GitHub Actions** once in GitHub to activate the first deployment. This one-time setting cannot be enabled by `GITHUB_TOKEN`; it requires repository-owner access.
+- [Privacy policy](https://www.nirmalamgroup.in/home/privacypolicy) — public HTTPS URL linked from Vinyasa for the Play listing and in-app disclosure. The repository also keeps the current source copy at [docs/privacy-policy.html](docs/privacy-policy.html).
 - [Play Console submission checklist](PLAY_CONSOLE_SUBMISSION.md) — Data safety, app-content, and content-rating preparation.
 - Upload signing is configured locally with a 4,096-bit RSA key at `release-signing/nirmalam-upload-key.jks` and ignored `keystore.properties`. Back up both into a password manager or encrypted vault; never commit either file. Enable Play App Signing when uploading the first AAB.

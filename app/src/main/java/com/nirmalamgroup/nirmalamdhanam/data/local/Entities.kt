@@ -12,10 +12,13 @@ data class ConfigEntity(
     /** Simplifies presentation only; it never changes balances, budgets, or transaction rules. */
     val neurodiverseModeEnabled: Boolean = false,
     val currencyCode: String = "INR",
+    val dateFormatPreference: DateFormatPreference = DateFormatPreference.DEVICE_LOCALE,
     /** Stops optional first-run suggestions and demo records from being restored after removal. */
     val starterDataRemoved: Boolean = false,
     val createdAtEpochMs: Long = System.currentTimeMillis()
 )
+
+enum class DateFormatPreference { DEVICE_LOCALE, DD_MMM_YYYY, DD_MM_YYYY, MM_DD_YYYY, YYYY_MM_DD }
 
 enum class AccountKind { SPENDING, CREDIT, SAVINGS, EMERGENCY, INVESTMENT }
 enum class AccountProductType { CASH, BANK, CREDIT_CARD, LOAN, PPF, EPF, NPS, SUPERANNUATION, MUTUAL_FUNDS, EQUITY, STOCKS, BULLION }

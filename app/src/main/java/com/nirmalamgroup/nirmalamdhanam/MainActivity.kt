@@ -79,6 +79,7 @@ internal data class MvpFinanceState(
     val categories: List<CategoryEntity> = emptyList(),
     val payees: List<PayeeEntity> = emptyList(),
     val currencyCode: String = "INR",
+    val dateFormatPreference: DateFormatPreference = DateFormatPreference.DEVICE_LOCALE,
     val neurodiverseModeEnabled: Boolean = false,
     val safeToSpendTodayPaise: Long = 50_000,
     val todaySpentPaise: Long = 0,
@@ -97,7 +98,10 @@ internal data class MvpFinanceState(
 private data class DayDetails(val envelopes: List<EnvelopeEntity>, val spent: Long, val holding: List<TransactionEntity>, val recent: List<TransactionEntity>)
 private data class AccountDirectory(val accounts: List<AccountEntity>, val balances: List<AccountBalance>, val categories: List<CategoryEntity>, val payees: List<PayeeEntity>)
 private val investmentProductTypes = setOf(AccountProductType.PPF, AccountProductType.EPF, AccountProductType.NPS, AccountProductType.SUPERANNUATION, AccountProductType.MUTUAL_FUNDS, AccountProductType.EQUITY, AccountProductType.STOCKS, AccountProductType.BULLION)
-private const val PrivacyPolicyUrl = "https://spillaip.github.io/nirmalam-dhanam/privacy-policy.html"
+private const val PrivacyPolicyUrl = "https://www.nirmalamgroup.in/home/privacypolicy"
+private const val SupportEmail = "spillaip@gmail.com"
+private const val SupportWebsiteUrl = "https://www.nirmalamgroup.in/"
+private const val GithubRepositoryUrl = "https://github.com/spillaip/nirmalam-dhanam"
 
 private fun suggestedAssetClass(productType: AccountProductType): AssetClass = when (productType) {
     AccountProductType.CASH, AccountProductType.BANK, AccountProductType.CREDIT_CARD, AccountProductType.LOAN -> AssetClass.CASH
@@ -173,7 +177,7 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
                     val portfolioDetails = combine(opened.investmentBalanceSnapshotDao().observeLatestForAll(), opened.investmentBalanceSnapshotDao().observeAll(), opened.netWorthSnapshotDao().observeAll()) { latest, history, netWorth -> Triple(latest, history, netWorth) }
                     combine(opened.accountDao().observeCashPosition(), accountDetails, opened.configDao().observe(), dayDetails, portfolioDetails) { cash, accountDetailsValue, config, day, portfolio ->
                         val dailyLimit = day.envelopes.firstOrNull { it.type == EnvelopeType.WANTS }?.dailyLimitPaise ?: 50_000
-                        MvpFinanceState(isUnlocked = true, isLoading = false, cashPaise = cash.trueAvailableCashPaise, accounts = accountDetailsValue.accounts, categories = accountDetailsValue.categories, payees = accountDetailsValue.payees, currencyCode = config?.currencyCode ?: "INR", neurodiverseModeEnabled = config?.neurodiverseModeEnabled ?: false, safeToSpendTodayPaise = FinancialCalculations.safeToSpend(dailyLimit, day.spent), todaySpentPaise = day.spent, holdingTank = day.holding, accountBalances = accountDetailsValue.balances, investmentSnapshots = portfolio.first, investmentHistory = portfolio.second, netWorthHistory = portfolio.third, recentTransactions = day.recent, nirmalamAiReady = NirmalamAiPreferences(app).isReady(), nirmalamAiLoading = _state.value.nirmalamAiLoading, nirmalamAiResponse = _state.value.nirmalamAiResponse)
+                        MvpFinanceState(isUnlocked = true, isLoading = false, cashPaise = cash.trueAvailableCashPaise, accounts = accountDetailsValue.accounts, categories = accountDetailsValue.categories, payees = accountDetailsValue.payees, currencyCode = config?.currencyCode ?: "INR", dateFormatPreference = config?.dateFormatPreference ?: DateFormatPreference.DEVICE_LOCALE, neurodiverseModeEnabled = config?.neurodiverseModeEnabled ?: false, safeToSpendTodayPaise = FinancialCalculations.safeToSpend(dailyLimit, day.spent), todaySpentPaise = day.spent, holdingTank = day.holding, accountBalances = accountDetailsValue.balances, investmentSnapshots = portfolio.first, investmentHistory = portfolio.second, netWorthHistory = portfolio.third, recentTransactions = day.recent, nirmalamAiReady = NirmalamAiPreferences(app).isReady(), nirmalamAiLoading = _state.value.nirmalamAiLoading, nirmalamAiResponse = _state.value.nirmalamAiResponse)
                     }.catch { error -> emit(MvpFinanceState(message = "Could not read the encrypted database: ${error.message}")) }
                         .collect { _state.value = it }
                 }
@@ -435,6 +439,9 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
     fun setCurrency(currencyCode: String) = viewModelScope.launch(Dispatchers.IO) {
         if (currencyCode == "INR") database?.configDao()?.setCurrencyCode(currencyCode)
     }
+    fun setDateFormatPreference(preference: DateFormatPreference) = viewModelScope.launch(Dispatchers.IO) {
+        database?.configDao()?.setDateFormatPreference(preference)
+    }
     fun saveNirmalamAi(endpoint: String, model: String, apiKey: String, enabled: Boolean) = viewModelScope.launch(Dispatchers.IO) {
         runCatching { NirmalamAiPreferences(app).save(endpoint, model, apiKey, enabled) }
             .onSuccess { _state.update { it.copy(nirmalamAiReady = enabled, message = "Nirmalam AI is ready for preset insights.") } }
@@ -563,7 +570,7 @@ private fun NirmalamMvpApp(viewModel: NirmalamMvpViewModel = viewModel()) {
     }
     MaterialTheme(colorScheme = colorScheme) {
         Surface(Modifier.fillMaxSize()) {
-            if (state.isUnlocked) MvpHome(state, { name, product, assetClass, target, openingBalance, onCreated -> viewModel.createAccount(name, product, assetClass, target, openingBalance, onCreated) }, viewModel::updateInvestmentAccount, viewModel::archiveInvestmentAccount, viewModel::saveInvestmentBalance, viewModel::updateInvestmentBalance, viewModel::contributeToInvestment, viewModel::deleteInvestmentSnapshot, viewModel::deleteTransaction, viewModel::updateTransaction, viewModel::recordTransaction, viewModel::setNeurodiverseMode, viewModel::setCurrency, viewModel::saveNirmalamAi, viewModel::disableNirmalamAi, viewModel::requestNirmalamAiInsight, viewModel::exportInterchangeReport, viewModel::exportNdfBackup, viewModel::importNdfBackup, viewModel::saveCategory, viewModel::updateCategory, viewModel::deleteCategory, viewModel::savePayee, viewModel::updatePayee, viewModel::deletePayee, viewModel::removeStarterData, viewModel::confirmPurchase, viewModel::discardPurchase, viewModel::clearMessage)
+            if (state.isUnlocked) MvpHome(state, { name, product, assetClass, target, openingBalance, onCreated -> viewModel.createAccount(name, product, assetClass, target, openingBalance, onCreated) }, viewModel::updateInvestmentAccount, viewModel::archiveInvestmentAccount, viewModel::saveInvestmentBalance, viewModel::updateInvestmentBalance, viewModel::contributeToInvestment, viewModel::deleteInvestmentSnapshot, viewModel::deleteTransaction, viewModel::updateTransaction, viewModel::recordTransaction, viewModel::setNeurodiverseMode, viewModel::setCurrency, viewModel::setDateFormatPreference, viewModel::saveNirmalamAi, viewModel::disableNirmalamAi, viewModel::requestNirmalamAiInsight, viewModel::exportInterchangeReport, viewModel::exportNdfBackup, viewModel::importNdfBackup, viewModel::saveCategory, viewModel::updateCategory, viewModel::deleteCategory, viewModel::savePayee, viewModel::updatePayee, viewModel::deletePayee, viewModel::removeStarterData, viewModel::confirmPurchase, viewModel::discardPurchase, viewModel::clearMessage)
             else UnlockScreen(state.isLoading, state.message, viewModel::unlock, viewModel::clearMessage)
         }
     }
@@ -572,11 +579,29 @@ private fun NirmalamMvpApp(viewModel: NirmalamMvpViewModel = viewModel()) {
 private fun formatMoney(paise: Long, currencyCode: String = "INR", includeSign: Boolean = false): String =
     MoneyFormatter.format(paise, currencyCode, includeSign)
 
-private fun formatLocalizedDate(epochMs: Long): String =
+private fun dateFormatter(preference: DateFormatPreference): DateTimeFormatter = when (preference) {
+    DateFormatPreference.DEVICE_LOCALE -> DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault())
+    DateFormatPreference.DD_MMM_YYYY -> DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())
+    DateFormatPreference.DD_MM_YYYY -> DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.getDefault())
+    DateFormatPreference.MM_DD_YYYY -> DateTimeFormatter.ofPattern("MM/dd/yyyy", Locale.getDefault())
+    DateFormatPreference.YYYY_MM_DD -> DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault())
+}
+
+private fun formatDate(date: LocalDate, preference: DateFormatPreference): String = date.format(dateFormatter(preference))
+
+private fun formatDate(epochMs: Long, preference: DateFormatPreference): String =
     Instant.ofEpochMilli(epochMs)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
-        .format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()))
+        .let { formatDate(it, preference) }
+
+private fun dateFormatPreferenceLabel(preference: DateFormatPreference): String = when (preference) {
+    DateFormatPreference.DEVICE_LOCALE -> "Device locale"
+    DateFormatPreference.DD_MMM_YYYY -> "26 Aug 2026"
+    DateFormatPreference.DD_MM_YYYY -> "26/08/2026"
+    DateFormatPreference.MM_DD_YYYY -> "08/26/2026"
+    DateFormatPreference.YYYY_MM_DD -> "2026-08-26"
+}
 
 private data class InvestmentPerformance(val absolutePaise: Long, val absolutePercent: Double?, val xirrPercent: Double?)
 
@@ -619,7 +644,7 @@ private fun UnlockScreen(loading: Boolean, message: String?, onUnlock: (String) 
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, (AccountEntity) -> Unit) -> Unit, onUpdateInvestmentAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestmentAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onDismissMessage: () -> Unit) {
+private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, (AccountEntity) -> Unit) -> Unit, onUpdateInvestmentAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestmentAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onDismissMessage: () -> Unit) {
     var showAccountSetup by remember { mutableStateOf(false) }
     var accountSetupProduct by remember { mutableStateOf(AccountProductType.CASH) }
     var addKhataMenuExpanded by remember { mutableStateOf(false) }
@@ -634,11 +659,11 @@ private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPro
     var showSettings by remember { mutableStateOf(false) }
     if (showReports) { IncomeExpenseReportsScreen(state, onBack = { showReports = false }); return }
     if (showTransactions) { TransactionHistoryScreen(state, onBack = { showTransactions = false }, onReports = { showTransactions = false; showReports = true }, onDelete = onDeleteTransaction, onUpdate = onUpdateTransaction, onRecord = onRecordTransaction); return }
-    if (showSettings) { SettingsScreen(state, onBack = { showSettings = false }, onNeurodiverseModeChanged = onNeurodiverseModeChanged, onCurrencyChanged = onCurrencyChanged, onSaveNirmalamAi = onSaveNirmalamAi, onDisableNirmalamAi = onDisableNirmalamAi, onNirmalamAiInsight = onNirmalamAiInsight, onExportInterchange = onExportInterchange, onExportNdf = onExportNdf, onImportNdf = onImportNdf, onSaveCategory = onSaveCategory, onUpdateCategory = onUpdateCategory, onDeleteCategory = onDeleteCategory, onSavePayee = onSavePayee, onUpdatePayee = onUpdatePayee, onDeletePayee = onDeletePayee, onRemoveStarterData = onRemoveStarterData); return }
+    if (showSettings) { SettingsScreen(state, onBack = { showSettings = false }, onNeurodiverseModeChanged = onNeurodiverseModeChanged, onCurrencyChanged = onCurrencyChanged, onDateFormatPreferenceChanged = onDateFormatPreferenceChanged, onSaveNirmalamAi = onSaveNirmalamAi, onDisableNirmalamAi = onDisableNirmalamAi, onNirmalamAiInsight = onNirmalamAiInsight, onExportInterchange = onExportInterchange, onExportNdf = onExportNdf, onImportNdf = onImportNdf, onSaveCategory = onSaveCategory, onUpdateCategory = onUpdateCategory, onDeleteCategory = onDeleteCategory, onSavePayee = onSavePayee, onUpdatePayee = onUpdatePayee, onDeletePayee = onDeletePayee, onRemoveStarterData = onRemoveStarterData); return }
     if (showNetWorth) { NetWorthDashboardScreen(state, onBack = { showNetWorth = false }, onOpenPortfolio = { showNetWorth = false; showPortfolio = true }); return }
     if (showPortfolio) {
         PortfolioAndNetWorthScreen(state, onBack = { showPortfolio = false }, onOpenNetWorth = { showPortfolio = false; showNetWorth = true }, onAddInvestment = { accountSetupProduct = AccountProductType.MUTUAL_FUNDS; showAccountSetup = true; showPortfolio = false }, onRecordBalance = { showInvestmentCheckIn = true }, onDeleteSnapshot = onDeleteInvestmentSnapshot, onUpdateSnapshot = onUpdateInvestmentBalance, onUpdateInvestment = onUpdateInvestmentAccount, onArchiveInvestment = onArchiveInvestmentAccount)
-        if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showInvestmentCheckIn = false }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false })
+        if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, state.dateFormatPreference, onDismiss = { showInvestmentCheckIn = false }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false })
         if (showContribution) InvestmentContributionDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showContribution = false }, onSave = { id, amount, payee -> onContributeToInvestment(id, amount, payee); showContribution = false })
         return
     }
@@ -774,7 +799,7 @@ private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPro
             dismissButton = { TextButton(onClick = { createdInvestment = null }) { Text("Done") } }
         )
     }
-    if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, initialAccountId = initialInvestmentCheckInId, onDismiss = { showInvestmentCheckIn = false; initialInvestmentCheckInId = null }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false; initialInvestmentCheckInId = null })
+    if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, state.dateFormatPreference, initialAccountId = initialInvestmentCheckInId, onDismiss = { showInvestmentCheckIn = false; initialInvestmentCheckInId = null }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false; initialInvestmentCheckInId = null })
     if (showContribution) InvestmentContributionDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showContribution = false }, onSave = { id, amount, payee -> onContributeToInvestment(id, amount, payee); showContribution = false })
 }
 
@@ -983,15 +1008,17 @@ private enum class NdfFileAction { EXPORT, IMPORT }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit) {
+private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit) {
     var showVargaManagement by remember { mutableStateOf(false) }
     var showVyaktiManagement by remember { mutableStateOf(false) }
     var showUserGuide by remember { mutableStateOf(false) }
     var showPrivacy by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     var showNirmalamAi by remember { mutableStateOf(false) }
     var showRemoveStarterDataConfirmation by remember { mutableStateOf(false) }
     var showJsonExportConfirmation by remember { mutableStateOf(false) }
     var currencyExpanded by remember { mutableStateOf(false) }
+    var dateFormatExpanded by remember { mutableStateOf(false) }
     var ndfAction by remember { mutableStateOf<NdfFileAction?>(null) }
     var ndfPassphrase by remember { mutableStateOf("") }
     var pendingNdfPassphrase by remember { mutableStateOf("") }
@@ -1006,6 +1033,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
     }
     if (showUserGuide) { UserGuideScreen(onBack = { showUserGuide = false }); return }
     if (showPrivacy) { PrivacyAndPermissionsScreen(onBack = { showPrivacy = false }); return }
+    if (showAbout) { AboutScreen(onBack = { showAbout = false }); return }
     if (showNirmalamAi) { NirmalamAiScreen(state, onBack = { showNirmalamAi = false }, onSave = onSaveNirmalamAi, onDisable = onDisableNirmalamAi, onInsight = onNirmalamAiInsight); return }
     if (showVargaManagement) { VargaManagementScreen(state.categories, onBack = { showVargaManagement = false }, onSave = onSaveCategory, onUpdate = onUpdateCategory, onDelete = onDeleteCategory); return }
     if (showVyaktiManagement) { VyaktiManagementScreen(state.payees, state.categories, onBack = { showVyaktiManagement = false }, onSave = onSavePayee, onUpdate = onUpdatePayee, onDelete = onDeletePayee); return }
@@ -1022,6 +1050,30 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
                 }
             }
             item {
+                ExposedDropdownMenuBox(expanded = dateFormatExpanded, onExpandedChange = { dateFormatExpanded = !dateFormatExpanded }) {
+                    OutlinedTextField(
+                        value = dateFormatPreferenceLabel(state.dateFormatPreference),
+                        onValueChange = {},
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        readOnly = true,
+                        label = { Text("Date format") },
+                        supportingText = { Text("Default is your mobile or tablet locale. Example: ${formatDate(LocalDate.of(2026, 8, 26), state.dateFormatPreference)}") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dateFormatExpanded) }
+                    )
+                    ExposedDropdownMenu(expanded = dateFormatExpanded, onDismissRequest = { dateFormatExpanded = false }) {
+                        DateFormatPreference.entries.forEach { preference ->
+                            DropdownMenuItem(
+                                text = { Text("${dateFormatPreferenceLabel(preference)} · ${formatDate(LocalDate.of(2026, 8, 26), preference)}") },
+                                onClick = {
+                                    onDateFormatPreferenceChanged(preference)
+                                    dateFormatExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            item {
                 ElevatedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
                     Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Column { Text("User guide", style = MaterialTheme.typography.titleMedium); Text("Concepts, features, and FAQ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -1029,6 +1081,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
                     }
                 }
             }
+            item { ManagementLinkCard("About", "App version, support, privacy, and acknowledgements", onClick = { showAbout = true }) }
             item { ManagementLinkCard("Varga", "${state.categories.size} categories · create, search, edit, and organise", onClick = { showVargaManagement = true }) }
             item { ManagementLinkCard("Vyakti", "${state.payees.size} saved people, shops, and institutions", onClick = { showVyaktiManagement = true }) }
             item { ManagementLinkCard("Nirmalam AI", if (state.nirmalamAiReady) "BYOL enabled · preset private insights" else "Optional BYOL insights · disabled", onClick = { showNirmalamAi = true }) }
@@ -1115,6 +1168,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave: (String, String, String, Boolean) -> Unit, onDisable: () -> Unit, onInsight: (NirmalamAiInsight) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val saved = remember { NirmalamAiPreferences(context).settings() }
@@ -1354,6 +1408,105 @@ private fun PrivacySection(title: String, body: String) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
+private fun AboutScreen(onBack: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val versionLabel = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+    val packageName = context.packageName
+    val contactIntent = remember {
+        Intent(Intent.ACTION_SENDTO, "mailto:$SupportEmail".toUri()).apply {
+            putExtra(Intent.EXTRA_SUBJECT, "Nirmalam Dhanam support")
+        }
+    }
+    Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = { TopAppBar(title = { Text("About") }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }) }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.padding(padding).padding(horizontal = 20.dp),
+            contentPadding = PaddingValues(vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                ElevatedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
+                    Column(
+                        Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(88.dp)
+                        ) {
+                            Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                Text("ND", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Nirmalam Dhanam", style = MaterialTheme.typography.headlineSmall)
+                            Text("A clear, private money practice", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Version $versionLabel", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+            item {
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("What this app is", style = MaterialTheme.typography.titleMedium)
+                        Text("Nirmalam Dhanam is a local-first personal finance app for cashflow, investments, and net worth. It is designed to keep records on-device, reduce clutter, and support calmer decisions.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            item {
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("App details", style = MaterialTheme.typography.titleMedium)
+                        AboutDetailRow("Version", versionLabel)
+                        AboutDetailRow("Package", packageName)
+                        AboutDetailRow("Database", "SQLCipher + Room")
+                        AboutDetailRow("Storage", "Local encrypted records")
+                    }
+                }
+            }
+            item {
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Support & trust", style = MaterialTheme.typography.titleMedium)
+                        OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, PrivacyPolicyUrl.toUri())) }, modifier = Modifier.fillMaxWidth()) { Text("Open privacy policy") }
+                        OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, SupportWebsiteUrl.toUri())) }, modifier = Modifier.fillMaxWidth()) { Text("Open website") }
+                        OutlinedButton(onClick = { context.startActivity(contactIntent) }, modifier = Modifier.fillMaxWidth()) { Text("Email support") }
+                        OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, GithubRepositoryUrl.toUri())) }, modifier = Modifier.fillMaxWidth()) { Text("Open GitHub repository") }
+                    }
+                }
+            }
+            item {
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Acknowledgements", style = MaterialTheme.typography.titleMedium)
+                        Text("Built with Kotlin, Jetpack Compose Material 3, Coroutines, Room, and SQLCipher for encrypted local storage.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Nirmalam AI is optional, bring-your-own-provider, and available only through fixed insight buttons.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun TransactionHistoryScreen(state: MvpFinanceState, onBack: () -> Unit, onReports: () -> Unit, onDelete: (String) -> Unit, onUpdate: (String, String, String, String, String, TransactionDirection) -> Unit, onRecord: (String, String, String, String, TransactionDirection, String, Long) -> Unit) {
     var query by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
@@ -1467,7 +1620,7 @@ private fun TransactionHistoryScreen(state: MvpFinanceState, onBack: () -> Unit,
             item { Text("Vyavahara", style = MaterialTheme.typography.titleMedium) }
             if (grouped.isEmpty()) item { EmptyLedgerState(query.isNotBlank() || filter != LedgerFilter.ALL) }
             grouped.forEach { (date, transactions) ->
-                item { Text(ledgerDayLabel(date), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+                item { Text(ledgerDayLabel(date, state.dateFormatPreference), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
                 items(transactions.size) { index ->
                     val transaction = transactions[index]
                     val signed = if (transaction.direction == TransactionDirection.CREDIT) transaction.amountPaise else -transaction.amountPaise
@@ -1507,7 +1660,7 @@ private fun TransactionHistoryScreen(state: MvpFinanceState, onBack: () -> Unit,
         state = state, selectedAccountId = selectedAccountId, selectedCategoryName = selectedCategoryName, range = range, filter = filter,
         onAccountSelected = { selectedAccountId = it }, onCategorySelected = { selectedCategoryName = it }, onRangeSelected = { range = it }, onFilterSelected = { filter = it }, onDismiss = { showFilters = false }
     )
-    if (showNewVyavahara) NewVyavaharaDialog(state.categories, state.payees, state.accounts, onDismiss = { showNewVyavahara = false }, onSave = { amount, payee, category, description, direction, accountId, occurredAtEpochMs -> onRecord(amount, payee, category, description, direction, accountId, occurredAtEpochMs); showNewVyavahara = false })
+    if (showNewVyavahara) NewVyavaharaDialog(state.categories, state.payees, state.accounts, state.dateFormatPreference, onDismiss = { showNewVyavahara = false }, onSave = { amount, payee, category, description, direction, accountId, occurredAtEpochMs -> onRecord(amount, payee, category, description, direction, accountId, occurredAtEpochMs); showNewVyavahara = false })
     transactionToDelete?.let { transaction -> AlertDialog(onDismissRequest = { transactionToDelete = null }, title = { Text("Delete Vyavahara?") }, text = { Text("This removes the entry from your encrypted money activity and updates balances.") }, confirmButton = { Button(onClick = { onDelete(transaction.id); transactionToDelete = null }) { Text("Delete") } }, dismissButton = { TextButton(onClick = { transactionToDelete = null }) { Text("Cancel") } }) }
 }
 
@@ -1683,7 +1836,7 @@ private fun InlineVyavaharaEditor(transaction: TransactionEntity, payees: List<P
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun NewVyavaharaDialog(categories: List<CategoryEntity>, payees: List<PayeeEntity>, accounts: List<AccountEntity>, onDismiss: () -> Unit, onSave: (String, String, String, String, TransactionDirection, String, Long) -> Unit) {
+private fun NewVyavaharaDialog(categories: List<CategoryEntity>, payees: List<PayeeEntity>, accounts: List<AccountEntity>, dateFormatPreference: DateFormatPreference, onDismiss: () -> Unit, onSave: (String, String, String, String, TransactionDirection, String, Long) -> Unit) {
     var amount by remember { mutableStateOf("") }
     var payee by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(categories.firstOrNull()?.name ?: "Other") }
@@ -1716,7 +1869,7 @@ private fun NewVyavaharaDialog(categories: List<CategoryEntity>, payees: List<Pa
                     singleLine = true
                 )
                 OutlinedTextField(
-                    value = datePickerState.selectedDateMillis?.let(::formatLocalizedDate).orEmpty(),
+                    value = datePickerState.selectedDateMillis?.let { formatDate(it, dateFormatPreference) }.orEmpty(),
                     onValueChange = {},
                     modifier = Modifier.fillMaxWidth(),
                     readOnly = true,
@@ -1867,10 +2020,10 @@ private fun EmptyLedgerState(isFiltered: Boolean) {
     }
 }
 
-private fun ledgerDayLabel(date: LocalDate): String = when (date) {
+private fun ledgerDayLabel(date: LocalDate, preference: DateFormatPreference): String = when (date) {
     LocalDate.now() -> "Today"
     LocalDate.now().minusDays(1) -> "Yesterday"
-    else -> date.toString()
+    else -> formatDate(date, preference)
 }
 
 @Composable
@@ -2047,7 +2200,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                         }
                         Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                             Text("AS ON", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                            Text(LocalDate.ofEpochDay(snapshot.asOfEpochDay).toString(), style = MaterialTheme.typography.bodyMedium)
+                            Text(formatDate(LocalDate.ofEpochDay(snapshot.asOfEpochDay), state.dateFormatPreference), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -2070,6 +2223,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                     if (editingSnapshotId == snapshot.id) {
                         InlineInvestmentSnapshotEditor(
                             snapshot = snapshot,
+                            dateFormatPreference = state.dateFormatPreference,
                             onCancel = { editingSnapshotId = null },
                             onSave = { date, cost, value, contribution, note ->
                                 onUpdateSnapshot(snapshot.id, snapshot.accountId, date, cost, value, contribution, note)
@@ -2123,8 +2277,8 @@ private fun InlineInvestmentEditor(account: AccountEntity, onCancel: () -> Unit,
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun InlineInvestmentSnapshotEditor(snapshot: InvestmentBalanceSnapshotEntity, onCancel: () -> Unit, onSave: (String, String, String, String, String) -> Unit) {
-    var date by remember(snapshot.id) { mutableStateOf(LocalDate.ofEpochDay(snapshot.asOfEpochDay).toString()) }
+private fun InlineInvestmentSnapshotEditor(snapshot: InvestmentBalanceSnapshotEntity, dateFormatPreference: DateFormatPreference, onCancel: () -> Unit, onSave: (String, String, String, String, String) -> Unit) {
+    var date by remember(snapshot.id) { mutableStateOf(LocalDate.ofEpochDay(snapshot.asOfEpochDay)) }
     var cost by remember(snapshot.id) { mutableStateOf((snapshot.totalCostPaise / 100.0).toString()) }
     var value by remember(snapshot.id) { mutableStateOf((snapshot.currentValuePaise / 100.0).toString()) }
     var contribution by remember(snapshot.id) { mutableStateOf((snapshot.netContributionPaise / 100.0).toString()) }
@@ -2135,19 +2289,19 @@ private fun InlineInvestmentSnapshotEditor(snapshot: InvestmentBalanceSnapshotEn
     )
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify check-in", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-    OutlinedTextField(value = date, onValueChange = {}, modifier = Modifier.fillMaxWidth(), readOnly = true, label = { Text("As-on date") }, trailingIcon = { TextButton(onClick = { showDatePicker = true }) { Text("Pick") } }, singleLine = true)
+    OutlinedTextField(value = formatDate(date, dateFormatPreference), onValueChange = {}, modifier = Modifier.fillMaxWidth(), readOnly = true, label = { Text("As-on date") }, trailingIcon = { TextButton(onClick = { showDatePicker = true }) { Text("Pick") } }, singleLine = true)
     OutlinedTextField(value = cost, onValueChange = { cost = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Total cost in ₹") }, singleLine = true)
     OutlinedTextField(value = value, onValueChange = { value = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Current value in ₹") }, singleLine = true)
     OutlinedTextField(value = contribution, onValueChange = { contribution = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Net contribution in ₹") }, singleLine = true)
     OutlinedTextField(value = note, onValueChange = { note = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Statement / note") }, singleLine = true)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         TextButton(onClick = onCancel) { Text("Cancel") }
-        Button(onClick = { onSave(date, cost, value, contribution, note) }) { Text("Save") }
+        Button(onClick = { onSave(date.toString(), cost, value, contribution, note) }) { Text("Save") }
     }
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = { TextButton(onClick = { datePickerState.selectedDateMillis?.let { date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString() }; showDatePicker = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { datePickerState.selectedDateMillis?.let { date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }; showDatePicker = false }) { Text("OK") } },
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
         ) { DatePicker(state = datePickerState) }
     }
@@ -2228,10 +2382,10 @@ private fun AccountSetupDialog(initialProduct: AccountProductType = AccountProdu
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, initialAccountId: String? = null, onDismiss: () -> Unit, onSave: (String, String, String, String, String, String) -> Unit) {
+private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, dateFormatPreference: DateFormatPreference, initialAccountId: String? = null, onDismiss: () -> Unit, onSave: (String, String, String, String, String, String) -> Unit) {
     var account by remember(accounts, initialAccountId) { mutableStateOf(accounts.firstOrNull { it.id == initialAccountId } ?: accounts.first()) }
     var accountExpanded by remember { mutableStateOf(false) }
-    var asOfDate by remember { mutableStateOf(LocalDate.now().toString()) }
+    var asOfDate by remember { mutableStateOf(LocalDate.now()) }
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -2253,7 +2407,7 @@ private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, initia
                     }
                 }
                 OutlinedTextField(
-                    value = asOfDate,
+                    value = formatDate(asOfDate, dateFormatPreference),
                     onValueChange = {},
                     modifier = Modifier.fillMaxWidth(),
                     readOnly = true,
@@ -2267,7 +2421,7 @@ private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, initia
                 OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text("Statement / note (optional)") }, singleLine = true)
             }
         },
-        confirmButton = { Button(onClick = { onSave(account.id, asOfDate, cost, value, contribution, note) }, enabled = cost.isNotBlank() && value.isNotBlank()) { Text("Save balance") } },
+        confirmButton = { Button(onClick = { onSave(account.id, asOfDate.toString(), cost, value, contribution, note) }, enabled = cost.isNotBlank() && value.isNotBlank()) { Text("Save balance") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
     if (showDatePicker) {
@@ -2276,7 +2430,7 @@ private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, initia
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { selected ->
-                        asOfDate = Instant.ofEpochMilli(selected).atZone(ZoneOffset.UTC).toLocalDate().toString()
+                        asOfDate = Instant.ofEpochMilli(selected).atZone(ZoneOffset.UTC).toLocalDate()
                     }
                     showDatePicker = false
                 }) { Text("OK") }
