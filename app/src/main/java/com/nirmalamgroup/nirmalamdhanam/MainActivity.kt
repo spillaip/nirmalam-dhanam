@@ -648,7 +648,7 @@ private fun UnlockScreen(loading: Boolean, message: String?, onUnlock: (String) 
         Spacer(Modifier.height(8.dp))
         Text("Your finances stay encrypted on this device.", style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(passphrase, { passphrase = it }, Modifier.fillMaxWidth(), label = { Text("Create or enter your passphrase") }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+        OutlinedTextField(passphrase, { passphrase = it }, Modifier.fillMaxWidth(), label = { Text("Create or enter your passphrase") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
         Spacer(Modifier.height(12.dp))
         Button(onClick = { onUnlock(passphrase); passphrase = "" }, enabled = !loading, modifier = Modifier.fillMaxWidth()) { Text(if (loading) "Unlocking…" else "Unlock") }
         message?.let { Spacer(Modifier.height(12.dp)); AssistChip(onClick = onDismiss, label = { Text(it) }) }
@@ -1178,6 +1178,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
                         Modifier.fillMaxWidth(),
                         label = { Text("Database passphrase") },
                         visualTransformation = if (passphraseVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                         trailingIcon = { TextButton(onClick = { passphraseVisible = !passphraseVisible }) { Text(if (passphraseVisible) "Hide" else "Show") } },
                         supportingText = { Text(if (action == NdfFileAction.EXPORT) "A mistyped passphrase will stop the export before any backup is created." else "Use the passphrase from the backup's original device or export session.") },
                         singleLine = true
@@ -1230,9 +1231,9 @@ private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave:
             if (!state.nirmalamAiReady) {
                 item { Text("Bring your own LLM", style = MaterialTheme.typography.titleMedium) }
                 item { Text("Use an OpenAI-compatible HTTPS endpoint. Your API key is encrypted with Android Keystore and is never written to the finance database or export files.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                item { OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), label = { Text("Provider base URL") }, supportingText = { Text("Example: https://api.openai.com/v1") }, singleLine = true) }
-                item { OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text("Model") }, singleLine = true) }
-                item { OutlinedTextField(apiKey, { apiKey = it }, Modifier.fillMaxWidth(), label = { Text("API key") }, visualTransformation = PasswordVisualTransformation(), singleLine = true) }
+                item { OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), label = { Text("Provider base URL") }, supportingText = { Text("Example: https://api.openai.com/v1") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), singleLine = true) }
+                item { OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text("Model") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
+                item { OutlinedTextField(apiKey, { apiKey = it }, Modifier.fillMaxWidth(), label = { Text("API key") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
                 item {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Checkbox(checked = consent, onCheckedChange = { consent = it })
@@ -1279,7 +1280,7 @@ private fun VargaManagementScreen(categories: List<CategoryEntity>, onBack: () -
     val shown = categories.filter { it.name.contains(query.trim(), ignoreCase = true) }
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = { TopAppBar(title = { Column { Text("Varga"); Text("Categories", style = MaterialTheme.typography.labelMedium) } }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }, actions = { TextButton(onClick = { showNew = true }) { Text("Add") } }) }) { padding ->
         LazyColumn(Modifier.padding(padding).padding(horizontal = 20.dp), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Search Varga") }, placeholder = { Text("Name or purpose") }, singleLine = true) }
+            item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Search Varga") }, placeholder = { Text("Name or purpose") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
             item { Text("${shown.size} of ${categories.size} Varga", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(shown.size) { index ->
                 val category = shown[index]
@@ -1307,7 +1308,7 @@ private fun VyaktiManagementScreen(payees: List<PayeeEntity>, categories: List<C
     val shown = payees.filter { payee -> listOfNotNull(payee.name, payee.defaultCategory).any { it.contains(query.trim(), ignoreCase = true) } }
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = { TopAppBar(title = { Column { Text("Vyakti"); Text("Payees", style = MaterialTheme.typography.labelMedium) } }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }, actions = { TextButton(onClick = { showNew = true }) { Text("Add") } }) }) { padding ->
         LazyColumn(Modifier.padding(padding).padding(horizontal = 20.dp), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Search Vyakti") }, placeholder = { Text("Person, shop, or institution") }, singleLine = true) }
+            item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Search Vyakti") }, placeholder = { Text("Person, shop, or institution") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
             item { Text("${shown.size} of ${payees.size} saved Vyakti", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(shown.size) { index ->
                 val payee = shown[index]
@@ -1383,7 +1384,7 @@ private fun UserGuideSection(title: String, items: List<String>) {
 private fun CategoryEditorDialog(onDismiss: () -> Unit, onSave: (String, TransactionDirection, String) -> Unit) {
     var name by remember { mutableStateOf("") }; var icon by remember { mutableStateOf("other") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("New Varga") }, text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(name, { name = it }, label = { Text("Varga name") }, singleLine = true)
+        OutlinedTextField(name, { name = it }, label = { Text("Varga name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
         Text("Use a Varga for either money in or money out.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("Choose a glyph", style = MaterialTheme.typography.labelLarge)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(categoryGlyphKeys.size) { index -> val key = categoryGlyphKeys[index]; FilterChip(icon == key, { icon = key }, label = { CategoryGlyph(key, 22.dp) }) } }
@@ -1394,8 +1395,8 @@ private fun CategoryEditorDialog(onDismiss: () -> Unit, onSave: (String, Transac
 private fun PayeeEditorDialog(categories: List<CategoryEntity>, onDismiss: () -> Unit, onSave: (String, String?) -> Unit) {
     var name by remember { mutableStateOf("") }; var defaultCategory by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("New Vyakti") }, text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
-        OutlinedTextField(defaultCategory, { defaultCategory = it }, label = { Text("Default Varga (optional)") }, placeholder = { Text(categories.firstOrNull()?.name ?: "Food") }, singleLine = true)
+        OutlinedTextField(name, { name = it }, label = { Text("Name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
+        OutlinedTextField(defaultCategory, { defaultCategory = it }, label = { Text("Default Varga (optional)") }, placeholder = { Text(categories.firstOrNull()?.name ?: "Food") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
     } }, confirmButton = { Button(onClick = { onSave(name, defaultCategory.ifBlank { null }) }, enabled = name.isNotBlank()) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
@@ -1405,7 +1406,7 @@ private fun InlineCategoryEditor(category: CategoryEntity, onCancel: () -> Unit,
     var icon by remember(category.id) { mutableStateOf(category.iconKey ?: "other") }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify Varga", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Varga name") }, singleLine = true)
+    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Varga name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
     Text("Available for both Aaya and Vyaya.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(categoryGlyphKeys.size) { index -> val key = categoryGlyphKeys[index]; FilterChip(icon == key, { icon = key }, label = { CategoryGlyph(key, 22.dp) }) } }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { Text("Cancel") }; Button(onClick = { onSave(name, category.transactionDirection, icon) }, enabled = name.isNotBlank()) { Text("Save") } }
@@ -1417,8 +1418,8 @@ private fun InlinePayeeEditor(payee: PayeeEntity, categories: List<CategoryEntit
     var defaultCategory by remember(payee.id) { mutableStateOf(payee.defaultCategory.orEmpty()) }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify Vyakti", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
-    OutlinedTextField(defaultCategory, { defaultCategory = it }, Modifier.fillMaxWidth(), label = { Text("Default Varga") }, placeholder = { Text(categories.firstOrNull()?.name ?: "Optional") }, singleLine = true)
+    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
+    OutlinedTextField(defaultCategory, { defaultCategory = it }, Modifier.fillMaxWidth(), label = { Text("Default Varga") }, placeholder = { Text(categories.firstOrNull()?.name ?: "Optional") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { Text("Cancel") }; Button(onClick = { onSave(name, defaultCategory.ifBlank { null }) }, enabled = name.isNotBlank()) { Text("Save") } }
 }
 
@@ -1945,7 +1946,7 @@ private fun InlineVyavaharaEditor(transaction: TransactionEntity, payees: List<P
             }
         }
     }
-    OutlinedTextField(description, { description = it }, Modifier.fillMaxWidth(), label = { Text("Description") }, minLines = 2)
+    OutlinedTextField(description, { description = it }, Modifier.fillMaxWidth(), label = { Text("Description") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), minLines = 2)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         TextButton(onClick = onCancel) { Text("Cancel") }
         Button(onClick = { onSave(amount, payee, category, description, direction) }) { Text("Save") }
@@ -2455,7 +2456,7 @@ private fun InlineInvestmentEditor(account: AccountEntity, onCancel: () -> Unit,
     var classExpanded by remember(account.id) { mutableStateOf(false) }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify Nivesha", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nivesha name") }, singleLine = true)
+    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nivesha name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
     ExposedDropdownMenuBox(productExpanded, { productExpanded = !productExpanded }) {
         OutlinedTextField(product.name.replace('_', ' '), {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Product type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(productExpanded) })
         ExposedDropdownMenu(productExpanded, { productExpanded = false }) { investmentProductTypes.forEach { type -> DropdownMenuItem(text = { Text(type.name.replace('_', ' ')) }, onClick = { product = type; assetClass = suggestedAssetClass(type); productExpanded = false }) } }
@@ -2464,7 +2465,7 @@ private fun InlineInvestmentEditor(account: AccountEntity, onCancel: () -> Unit,
         OutlinedTextField(assetClass.name, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Asset class") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(classExpanded) })
         ExposedDropdownMenu(classExpanded, { classExpanded = false }) { AssetClass.entries.forEach { type -> DropdownMenuItem(text = { Text(type.name) }, onClick = { assetClass = type; classExpanded = false }) } }
     }
-    OutlinedTextField(target, { target = it }, Modifier.fillMaxWidth(), label = { Text("Target allocation (%)") }, singleLine = true)
+    OutlinedTextField(target, { target = it }, Modifier.fillMaxWidth(), label = { Text("Target allocation (%)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { Text("Cancel") }; Button(onClick = { onSave(name, product, assetClass, target) }, enabled = name.isNotBlank()) { Text("Save") } }
 }
 
@@ -2483,10 +2484,10 @@ private fun InlineInvestmentSnapshotEditor(snapshot: InvestmentBalanceSnapshotEn
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify check-in", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     OutlinedTextField(value = formatDate(date, dateFormatPreference), onValueChange = {}, modifier = Modifier.fillMaxWidth(), readOnly = true, label = { Text("As-on date") }, trailingIcon = { TextButton(onClick = { showDatePicker = true }) { Text("Pick") } }, singleLine = true)
-    OutlinedTextField(value = cost, onValueChange = { cost = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Total cost in ₹") }, singleLine = true)
-    OutlinedTextField(value = value, onValueChange = { value = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Current value in ₹") }, singleLine = true)
-    OutlinedTextField(value = contribution, onValueChange = { contribution = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Net contribution in ₹") }, singleLine = true)
-    OutlinedTextField(value = note, onValueChange = { note = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Statement / note") }, singleLine = true)
+    OutlinedTextField(value = cost, onValueChange = { cost = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Total cost in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+    OutlinedTextField(value = value, onValueChange = { value = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Current value in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+    OutlinedTextField(value = contribution, onValueChange = { contribution = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Net contribution in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+    OutlinedTextField(value = note, onValueChange = { note = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Statement / note") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         TextButton(onClick = onCancel) { Text("Cancel") }
         Button(onClick = { onSave(date.toString(), cost, value, contribution, note) }) { Text("Save") }
@@ -2551,7 +2552,7 @@ private fun AccountSetupDialog(initialProduct: AccountProductType = AccountProdu
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Set up a daily Khata, a liability, or an investment holding.", style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Khata name") }, singleLine = true)
+                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Khata name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
                 ExposedDropdownMenuBox(expanded, { expanded = !expanded }) {
                     OutlinedTextField(product.name.replace('_', ' '), {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Khata type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
                     ExposedDropdownMenu(expanded, { expanded = false }) {
@@ -2575,9 +2576,9 @@ private fun AccountSetupDialog(initialProduct: AccountProductType = AccountProdu
                             AssetClass.entries.forEach { type -> DropdownMenuItem(text = { Text(type.name) }, onClick = { assetClass = type; assetClassExpanded = false }) }
                         }
                     }
-                    OutlinedTextField(targetPercent, { targetPercent = it }, Modifier.fillMaxWidth(), label = { Text("Target allocation (%)") }, singleLine = true)
+                    OutlinedTextField(targetPercent, { targetPercent = it }, Modifier.fillMaxWidth(), label = { Text("Target allocation (%)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
                 }
-                OutlinedTextField(openingBalance, { openingBalance = it }, Modifier.fillMaxWidth(), label = { Text(if (isInvestment) "Starting cost / value in ₹" else if (product == AccountProductType.CREDIT_CARD || product == AccountProductType.LOAN) "Current amount owed in ₹" else "Opening balance in ₹") }, singleLine = true)
+                OutlinedTextField(openingBalance, { openingBalance = it }, Modifier.fillMaxWidth(), label = { Text(if (isInvestment) "Starting cost / value in ₹" else if (product == AccountProductType.CREDIT_CARD || product == AccountProductType.LOAN) "Current amount owed in ₹" else "Opening balance in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
             }
         },
         confirmButton = { Button(onClick = { onSave(name, product, assetClass, targetPercent, openingBalance) }, enabled = name.isNotBlank()) { Text("Save") } },
@@ -2620,10 +2621,10 @@ private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, dateFo
                     trailingIcon = { TextButton(onClick = { showDatePicker = true }) { Text("Pick") } },
                     singleLine = true
                 )
-                OutlinedTextField(cost, { cost = it }, Modifier.fillMaxWidth(), label = { Text("Total cost / invested amount in ₹") }, singleLine = true)
-                OutlinedTextField(value, { value = it }, Modifier.fillMaxWidth(), label = { Text("Current value in ₹") }, singleLine = true)
-                OutlinedTextField(contribution, { contribution = it }, Modifier.fillMaxWidth(), label = { Text("Net contribution since prior check-in in ₹") }, placeholder = { Text("0 if none") }, singleLine = true)
-                OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text("Statement / note (optional)") }, singleLine = true)
+                OutlinedTextField(cost, { cost = it }, Modifier.fillMaxWidth(), label = { Text("Total cost / invested amount in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                OutlinedTextField(value, { value = it }, Modifier.fillMaxWidth(), label = { Text("Current value in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                OutlinedTextField(contribution, { contribution = it }, Modifier.fillMaxWidth(), label = { Text("Net contribution since prior check-in in ₹") }, placeholder = { Text("0 if none") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text("Statement / note (optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
             }
         },
         confirmButton = { Button(onClick = { onSave(account.id, asOfDate.toString(), cost, value, contribution, note) }, enabled = cost.isNotBlank() && value.isNotBlank()) { Text("Save balance") } },
@@ -2661,8 +2662,8 @@ private fun InvestmentContributionDialog(accounts: List<AccountEntity>, onDismis
                 OutlinedTextField(account.name, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Nivesha") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
                 ExposedDropdownMenu(expanded, { expanded = false }) { accounts.forEach { item -> DropdownMenuItem(text = { Text(item.name) }, onClick = { account = item; expanded = false }) } }
             }
-            OutlinedTextField(amount, { amount = it }, Modifier.fillMaxWidth(), label = { Text("Contribution in ₹") }, singleLine = true)
-            OutlinedTextField(payee, { payee = it }, Modifier.fillMaxWidth(), label = { Text("Provider / payee (optional)") }, singleLine = true)
+            OutlinedTextField(amount, { amount = it }, Modifier.fillMaxWidth(), label = { Text("Contribution in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+            OutlinedTextField(payee, { payee = it }, Modifier.fillMaxWidth(), label = { Text("Provider / payee (optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
         } },
         confirmButton = { Button(onClick = { onSave(account.id, amount, payee) }, enabled = amount.isNotBlank()) { Text("Record contribution") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
