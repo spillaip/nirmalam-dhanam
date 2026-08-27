@@ -2056,9 +2056,9 @@ private fun NewVyavaharaDialog(categories: List<CategoryEntity>, payees: List<Pa
     }
 }
 
-private enum class LedgerFilter(val label: String) { ALL("All"), SPENT("Spent"), INCOME("Income") }
+enum class LedgerFilter(val label: String) { ALL("All"), SPENT("Spent"), INCOME("Income") }
 
-private enum class LedgerRange(val label: String, val description: String) {
+enum class LedgerRange(val label: String, val description: String) {
     WEEK("7 days", "Last 7 days"),
     MONTH("This month", "This month"),
     QUARTER("3 months", "Last 3 months"),
