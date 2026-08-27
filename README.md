@@ -18,6 +18,7 @@ Nirmalam Dhanam is a local-first, privacy-centred personal finance app for Andro
 - Pause wants purchases in a 48-hour cooling tank, with haptic confirmation actions.
 - Export and restore encrypted `.ndf` backups from Vinyasa. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata; the database passphrase is verified before export and required again for restore.
 - Produce a versioned, read-only JSON interchange report for local Python/Java analysis; values use integer paise to avoid precision loss.
+- Use the bundled Python API toolkit for local validation, filtering, summary generation, and `.ndf` manifest inspection from exported files.
 
 ## Screen map
 
@@ -35,7 +36,7 @@ Kotlin, Coroutines, StateFlow, KotlinX Serialization, Jetpack Compose Material 3
 
 ## Project status
 
-Nirmalam Dhanam is now published on Google Play. This repository contains the production app baseline plus continuing post-launch work for local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, portfolio and balance charts, encrypted backup/restore controls, optional BYOL Nirmalam AI insights, and Material 3 screens. The Room schema is currently version 11. The public manifest targets Android API 36 and does not declare restricted SMS permissions. The app supports a device-locale default date format with explicit override options from Vinyasa.
+Nirmalam Dhanam is now published on Google Play. This repository contains the production app baseline plus continuing post-launch work for local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, portfolio and balance charts, encrypted backup/restore controls, optional BYOL Nirmalam AI insights, and Material 3 screens. The Room schema is currently version 12. The public manifest targets Android API 36 and does not declare restricted SMS permissions. The app supports a device-locale default date format with explicit override options from Vinyasa.
 
 ## Local build
 
@@ -54,6 +55,24 @@ The user's passphrase must be collected only after device authentication and sup
 Benchmark suggestions are local metadata only: recognised holding names can be associated with an appropriate Indian market index (or a domestic gold benchmark), but the app does not fetch prices or transmit portfolio data. Confirm the scheme's official benchmark from its AMC or issuer before relying on a comparison.
 
 See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange contracts.
+
+## Python data API
+
+The repository includes a local Python toolkit under [python-api](python-api) for working with exported data files.
+
+- Loads and validates `nirmalam-dhanam-interchange` JSON exports.
+- Filters Vyavahara records by Khata, Varga, Vyakti, direction, holding-tank status, and time range.
+- Produces local summaries for cashflow, category/payee/account totals, portfolio value, and latest net worth.
+- Reads `.ndf` manifest metadata safely without decrypting or modifying the encrypted SQLCipher payload.
+- Ships as a PyPI-ready package with typed models, a CLI entry point, changelog, and publish metadata.
+
+Example:
+
+```powershell
+cd .\python-api
+python -m unittest
+python -m nirmalam_dhanam_api summary ..\sample.json
+```
 
 ## Release verification
 

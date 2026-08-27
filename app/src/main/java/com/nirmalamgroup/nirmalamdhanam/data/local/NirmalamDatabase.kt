@@ -16,7 +16,7 @@ import javax.crypto.spec.PBEKeySpec
 
 class DatabaseConverters { @TypeConverter fun fromAccountKind(v: AccountKind) = v.name; @TypeConverter fun toAccountKind(v: String) = AccountKind.valueOf(v); @TypeConverter fun fromProductType(v: AccountProductType) = v.name; @TypeConverter fun toProductType(v: String) = AccountProductType.valueOf(v); @TypeConverter fun fromAssetClass(v: AssetClass) = v.name; @TypeConverter fun toAssetClass(v: String) = AssetClass.valueOf(v); @TypeConverter fun fromBenchmarkTrackingMethod(v: BenchmarkTrackingMethod) = v.name; @TypeConverter fun toBenchmarkTrackingMethod(v: String) = BenchmarkTrackingMethod.valueOf(v); @TypeConverter fun fromDirection(v: TransactionDirection) = v.name; @TypeConverter fun toDirection(v: String) = TransactionDirection.valueOf(v); @TypeConverter fun fromEnvelope(v: EnvelopeType?) = v?.name; @TypeConverter fun toEnvelope(v: String?) = v?.let(EnvelopeType::valueOf); @TypeConverter fun fromDateFormatPreference(v: DateFormatPreference) = v.name; @TypeConverter fun toDateFormatPreference(v: String) = DateFormatPreference.valueOf(v) }
 
-@Database(entities = [ConfigEntity::class, AccountEntity::class, TransactionEntity::class, EnvelopeEntity::class, CategoryEntity::class, PayeeEntity::class, InvestmentBalanceSnapshotEntity::class, NetWorthSnapshotEntity::class], version = 11, exportSchema = false)
+@Database(entities = [ConfigEntity::class, AccountEntity::class, TransactionEntity::class, EnvelopeEntity::class, CategoryEntity::class, PayeeEntity::class, InvestmentBalanceSnapshotEntity::class, NetWorthSnapshotEntity::class], version = 12, exportSchema = false)
 @TypeConverters(DatabaseConverters::class)
 abstract class NirmalamDatabase : RoomDatabase() {
     abstract fun configDao(): ConfigDao
@@ -40,7 +40,7 @@ abstract class NirmalamDatabase : RoomDatabase() {
         /** Used by the instrumentation suite so it exercises the exact production migration chain. */
         fun migrationChain(): Array<Migration> = arrayOf(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12
         )
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -106,6 +106,14 @@ abstract class NirmalamDatabase : RoomDatabase() {
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN dateFormatPreference TEXT NOT NULL DEFAULT 'DEVICE_LOCALE'")
+            }
+        }
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN savedLedgerRange TEXT NOT NULL DEFAULT 'MONTH'")
+                db.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN savedLedgerFilter TEXT NOT NULL DEFAULT 'ALL'")
+                db.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN savedLedgerAccountId TEXT")
+                db.execSQL("ALTER TABLE nirmalam_dhanam_config ADD COLUMN savedLedgerCategoryName TEXT")
             }
         }
     }

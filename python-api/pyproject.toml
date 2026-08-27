@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nirmalam-dhanam-api"
+version = "0.1.0"
+description = "Local Python toolkit for Nirmalam Dhanam interchange and backup metadata."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Suresh P B", email = "spillaip@gmail.com" }
+]
+keywords = ["finance", "personal-finance", "android", "portfolio", "backup", "json", "ndf"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Financial and Insurance Industry",
+  "License :: Other/Proprietary License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Office/Business :: Financial",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/spillaip/nirmalam-dhanam"
+Documentation = "https://github.com/spillaip/nirmalam-dhanam/tree/main/python-api"
+Repository = "https://github.com/spillaip/nirmalam-dhanam"
+Issues = "https://github.com/spillaip/nirmalam-dhanam/issues"
+
+[project.scripts]
+nirmalam-dhanam = "nirmalam_dhanam_api.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2.2",
+  "twine>=5.1.1",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nirmalam_dhanam_api*"]
+
+[tool.setuptools.package-data]
+nirmalam_dhanam_api = ["py.typed"]

@@ -13,6 +13,10 @@ data class ConfigEntity(
     val neurodiverseModeEnabled: Boolean = false,
     val currencyCode: String = "INR",
     val dateFormatPreference: DateFormatPreference = DateFormatPreference.DEVICE_LOCALE,
+    val savedLedgerRange: String = "MONTH",
+    val savedLedgerFilter: String = "ALL",
+    val savedLedgerAccountId: String? = null,
+    val savedLedgerCategoryName: String? = null,
     /** Stops optional first-run suggestions and demo records from being restored after removal. */
     val starterDataRemoved: Boolean = false,
     val createdAtEpochMs: Long = System.currentTimeMillis()

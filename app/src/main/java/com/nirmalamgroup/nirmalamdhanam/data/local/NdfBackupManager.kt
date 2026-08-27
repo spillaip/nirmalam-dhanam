@@ -111,7 +111,7 @@ class NdfBackupManager(
                     exportedAtEpochMs = System.currentTimeMillis(),
                     kdfSaltBase64 = Base64.encodeToString(keyManager.salt, Base64.NO_WRAP),
                     databaseSha256 = source.sha256Hex(),
-                    databaseSchemaVersion = 10
+                    databaseSchemaVersion = 12
                 )
                 context.contentResolver.openOutputStream(destination, "wt")?.use { output ->
                     ZipOutputStream(BufferedOutputStream(output)).use { zip ->

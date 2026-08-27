@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.Flow
     @Query("UPDATE nirmalam_dhanam_config SET neurodiverseModeEnabled = :enabled WHERE id = 1") suspend fun setNeurodiverseMode(enabled: Boolean): Int
     @Query("UPDATE nirmalam_dhanam_config SET currencyCode = :currencyCode WHERE id = 1") suspend fun setCurrencyCode(currencyCode: String): Int
     @Query("UPDATE nirmalam_dhanam_config SET dateFormatPreference = :preference WHERE id = 1") suspend fun setDateFormatPreference(preference: DateFormatPreference): Int
+    @Query("UPDATE nirmalam_dhanam_config SET savedLedgerRange = :range, savedLedgerFilter = :filter, savedLedgerAccountId = :accountId, savedLedgerCategoryName = :categoryName WHERE id = 1")
+    suspend fun setSavedLedgerView(range: String, filter: String, accountId: String?, categoryName: String?): Int
     @Query("UPDATE nirmalam_dhanam_config SET starterDataRemoved = :removed WHERE id = 1") suspend fun setStarterDataRemoved(removed: Boolean): Int
 }
 
