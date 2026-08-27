@@ -35,7 +35,7 @@ Kotlin, Coroutines, StateFlow, KotlinX Serialization, Jetpack Compose Material 3
 
 ## Project status
 
-This repository contains Version 1.3.0 release-candidate work: local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, portfolio and balance charts, encrypted backup/restore controls, optional BYOL Nirmalam AI insights, and Material 3 screens. The Room schema is currently version 11. The public manifest targets Android API 36 and does not declare restricted SMS permissions. The app now supports a device-locale default date format with explicit override options from Vinyasa. Before publishing, configure Play App Signing, host the included privacy-policy page at a stable HTTPS URL, complete the Play Console declarations, and complete final accessibility/device testing.
+Nirmalam Dhanam is now published on Google Play. This repository contains the production app baseline plus continuing post-launch work for local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, portfolio and balance charts, encrypted backup/restore controls, optional BYOL Nirmalam AI insights, and Material 3 screens. The Room schema is currently version 11. The public manifest targets Android API 36 and does not declare restricted SMS permissions. The app supports a device-locale default date format with explicit override options from Vinyasa.
 
 ## Local build
 
@@ -66,3 +66,8 @@ See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange con
 - [Privacy policy](https://www.nirmalamgroup.in/home/privacypolicy) — public HTTPS URL linked from Vinyasa for the Play listing and in-app disclosure. The repository also keeps the current source copy at [docs/privacy-policy.html](docs/privacy-policy.html).
 - [Play Console submission checklist](PLAY_CONSOLE_SUBMISSION.md) — Data safety, app-content, and content-rating preparation.
 - Upload signing is configured locally with a 4,096-bit RSA key at `release-signing/nirmalam-upload-key.jks` and ignored `keystore.properties`. Back up both into a password manager or encrypted vault; never commit either file. Enable Play App Signing when uploading the first AAB.
+
+## Post-launch notes
+
+- Privacy policy hosting is now served from `nirmalamgroup.in`; GitHub Pages deployment is no longer used for the public policy URL.
+- Keep Play Store listing assets, reviewer notes, and in-app support/privacy details aligned with the live production app.
