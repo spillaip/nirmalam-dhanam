@@ -13,14 +13,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.net.toUri
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
@@ -29,10 +30,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -46,6 +50,7 @@ import com.nirmalamgroup.nirmalamdhanam.data.local.*
 import com.nirmalamgroup.nirmalamdhanam.domain.usecase.CoolDownTankInterceptorUseCase
 import com.nirmalamgroup.nirmalamdhanam.domain.usecase.MoneyFormatter
 import com.nirmalamgroup.nirmalamdhanam.domain.usecase.FinancialCalculations
+import com.nirmalamgroup.nirmalamdhanam.domain.usecase.InvestmentPerformanceMetric
 import com.nirmalamgroup.nirmalamdhanam.ui.components.CoolDownTankCard
 import com.nirmalamgroup.nirmalamdhanam.ui.components.NeurodiverseModeToggle
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +61,7 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.Instant
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -93,6 +99,7 @@ internal data class MvpFinanceState(
     val investmentHistory: List<InvestmentBalanceSnapshotEntity> = emptyList(),
     val netWorthHistory: List<NetWorthSnapshotEntity> = emptyList(),
     val recentTransactions: List<TransactionEntity> = emptyList(),
+    val showInvestmentPerformance: Boolean = false,
     val nirmalamAiReady: Boolean = false,
     val nirmalamAiLoading: Boolean = false,
     val nirmalamAiResponse: String? = null,
@@ -101,7 +108,7 @@ internal data class MvpFinanceState(
 
 private data class DayDetails(val envelopes: List<EnvelopeEntity>, val spent: Long, val holding: List<TransactionEntity>, val recent: List<TransactionEntity>)
 private data class AccountDirectory(val accounts: List<AccountEntity>, val balances: List<AccountBalance>, val categories: List<CategoryEntity>, val payees: List<PayeeEntity>)
-private val investmentProductTypes = setOf(AccountProductType.PPF, AccountProductType.EPF, AccountProductType.NPS, AccountProductType.SUPERANNUATION, AccountProductType.MUTUAL_FUNDS, AccountProductType.EQUITY, AccountProductType.STOCKS, AccountProductType.BULLION)
+private val investmentProductTypes = setOf(AccountProductType.PPF, AccountProductType.EPF, AccountProductType.NPS, AccountProductType.SUPERANNUATION, AccountProductType.MUTUAL_FUNDS, AccountProductType.EQUITY, AccountProductType.STOCKS, AccountProductType.BULLION, AccountProductType.REAL_ESTATE)
 private const val PrivacyPolicyUrl = "https://www.nirmalamgroup.in/home/privacypolicy"
 private const val SupportEmail = "spillaip@gmail.com"
 private const val SupportWebsiteUrl = "https://www.nirmalamgroup.in/"
@@ -119,6 +126,7 @@ private fun suggestedAssetClass(productType: AccountProductType): AssetClass = w
     AccountProductType.EPF, AccountProductType.NPS, AccountProductType.SUPERANNUATION -> AssetClass.RETIREMENT
     AccountProductType.MUTUAL_FUNDS, AccountProductType.EQUITY, AccountProductType.STOCKS -> AssetClass.EQUITY
     AccountProductType.BULLION -> AssetClass.BULLION
+    AccountProductType.REAL_ESTATE -> AssetClass.REAL_ESTATE
 }
 
 private data class BenchmarkSuggestion(val indexName: String, val method: BenchmarkTrackingMethod)
@@ -322,7 +330,7 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
         val kind = when (productType) {
             AccountProductType.CASH, AccountProductType.BANK -> AccountKind.SPENDING
             AccountProductType.CREDIT_CARD, AccountProductType.LOAN -> AccountKind.CREDIT
-            AccountProductType.PPF, AccountProductType.EPF, AccountProductType.NPS, AccountProductType.SUPERANNUATION, AccountProductType.MUTUAL_FUNDS, AccountProductType.EQUITY, AccountProductType.STOCKS, AccountProductType.BULLION -> AccountKind.INVESTMENT
+            AccountProductType.PPF, AccountProductType.EPF, AccountProductType.NPS, AccountProductType.SUPERANNUATION, AccountProductType.MUTUAL_FUNDS, AccountProductType.EQUITY, AccountProductType.STOCKS, AccountProductType.BULLION, AccountProductType.REAL_ESTATE -> AccountKind.INVESTMENT
         }
         val storedBalance = if (productType == AccountProductType.CREDIT_CARD || productType == AccountProductType.LOAN) -balance else balance
         val benchmark = suggestedBenchmark(name, productType)
@@ -331,13 +339,18 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
         opened.accountDao().upsert(account)
         viewModelScope.launch { onCreated(account) }
     }
-    fun updateInvestmentAccount(accountId: String, name: String, productType: AccountProductType, assetClass: AssetClass, targetPercentText: String) = viewModelScope.launch(Dispatchers.IO) {
+    fun updateAccount(accountId: String, name: String, productType: AccountProductType, assetClass: AssetClass, targetPercentText: String) = viewModelScope.launch(Dispatchers.IO) {
         val targetBps = runCatching { BigDecimal(targetPercentText.trim().ifBlank { "0" }).movePointRight(2).intValueExact() }.getOrNull()
         val opened = database ?: return@launch
         val account = state.value.accounts.firstOrNull { it.id == accountId } ?: return@launch
-        if (name.isBlank() || targetBps == null || targetBps !in 0..10_000 || productType !in investmentProductTypes) { _state.update { it.copy(message = "Use a name, an investment product, and a target between 0% and 100%.") }; return@launch }
+        if (name.isBlank() || targetBps == null || targetBps !in 0..10_000) { _state.update { it.copy(message = "Use a name and a target between 0% and 100%.") }; return@launch }
+        val kind = when (productType) {
+            AccountProductType.CASH, AccountProductType.BANK -> AccountKind.SPENDING
+            AccountProductType.CREDIT_CARD, AccountProductType.LOAN -> AccountKind.CREDIT
+            else -> AccountKind.INVESTMENT
+        }
         val benchmark = suggestedBenchmark(name, productType)
-        opened.accountDao().upsert(account.copy(name = name.trim(), kind = AccountKind.INVESTMENT, productType = productType, assetClass = assetClass, targetAllocationBps = targetBps, benchmarkIndexName = benchmark?.indexName, benchmarkTrackingMethod = benchmark?.method ?: BenchmarkTrackingMethod.NONE))
+        opened.accountDao().upsert(account.copy(name = name.trim(), kind = kind, productType = productType, assetClass = assetClass, targetAllocationBps = targetBps, benchmarkIndexName = benchmark?.indexName, benchmarkTrackingMethod = benchmark?.method ?: BenchmarkTrackingMethod.NONE))
     }
     fun archiveInvestmentAccount(accountId: String) = viewModelScope.launch(Dispatchers.IO) { database?.accountDao()?.archive(accountId) }
     fun exportInterchangeReport(destination: Uri) = viewModelScope.launch(Dispatchers.IO) {
@@ -404,7 +417,7 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
             opened.transactionDao().upsert(TransactionEntity(UUID.randomUUID().toString(), cashAccount.id, amount, TransactionDirection.DEBIT, merchant = label, category = "Investment contribution", payee = label, envelopeType = EnvelopeType.INVESTMENT))
             val previous = opened.investmentBalanceSnapshotDao().getLatest(accountId)
             val sameDay = previous?.asOfEpochDay == today
-            val priorContribution = if (sameDay) requireNotNull(previous).netContributionPaise else 0
+            val priorContribution = if (sameDay) previous.netContributionPaise else 0
             val snapshot = InvestmentBalanceSnapshotEntity(UUID.randomUUID().toString(), accountId, today, (previous?.totalCostPaise ?: 0) + amount, (previous?.currentValuePaise ?: 0) + amount, priorContribution + amount, "Contribution")
             opened.investmentBalanceSnapshotDao().upsert(snapshot)
             val portfolioValue = opened.investmentBalanceSnapshotDao().getAll().groupBy { it.accountId }.values.sumOf { items -> items.maxBy { it.asOfEpochDay }.currentValuePaise }
@@ -567,6 +580,7 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
             if (opened.payeeDao().getByName(resolvedPayee) == null) opened.payeeDao().upsert(PayeeEntity("payee-${UUID.randomUUID()}", resolvedPayee, resolvedCategory))
         }
     }
+    fun setShowInvestmentPerformance(show: Boolean) { _state.update { it.copy(showInvestmentPerformance = show) } }
     fun clearMessage() { _state.update { it.copy(message = null) } }
     override fun onCleared() { observation?.cancel(); database?.close() }
 }
@@ -574,16 +588,34 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
 @Composable
 private fun NirmalamMvpApp(viewModel: NirmalamMvpViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    
+    var pendingMetrics by remember { mutableStateOf<List<InvestmentPerformanceMetric>>(emptyList()) }
+    val createPdfFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        uri?.let { dest ->
+            PdfReportExporter(context).exportPerformanceReport(dest, state.currencyCode, pendingMetrics)
+        }
+        pendingMetrics = emptyList()
+    }
+
     val colorScheme = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            if (androidx.compose.foundation.isSystemInDarkTheme()) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (isSystemInDarkTheme()) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         else -> lightColorScheme()
     }
     MaterialTheme(colorScheme = colorScheme) {
         Surface(Modifier.fillMaxSize()) {
-            if (state.isUnlocked) MvpHome(state, { name, product, assetClass, target, openingBalance, onCreated -> viewModel.createAccount(name, product, assetClass, target, openingBalance, onCreated) }, viewModel::updateInvestmentAccount, viewModel::archiveInvestmentAccount, viewModel::saveInvestmentBalance, viewModel::updateInvestmentBalance, viewModel::contributeToInvestment, viewModel::deleteInvestmentSnapshot, viewModel::deleteTransaction, viewModel::updateTransaction, viewModel::recordTransaction, viewModel::setNeurodiverseMode, viewModel::setCurrency, viewModel::setDateFormatPreference, viewModel::setSavedLedgerView, viewModel::saveNirmalamAi, viewModel::disableNirmalamAi, viewModel::requestNirmalamAiInsight, viewModel::exportInterchangeReport, viewModel::exportNdfBackup, viewModel::importNdfBackup, viewModel::saveCategory, viewModel::updateCategory, viewModel::deleteCategory, viewModel::savePayee, viewModel::updatePayee, viewModel::deletePayee, viewModel::removeStarterData, viewModel::confirmPurchase, viewModel::discardPurchase, viewModel::clearMessage)
+            if (state.isUnlocked) MvpHome(
+                state,
+                { name, product, assetClass, target, openingBalance, onCreated -> viewModel.createAccount(name, product, assetClass, target, openingBalance, onCreated) },
+                viewModel::updateAccount, viewModel::archiveInvestmentAccount, viewModel::saveInvestmentBalance, viewModel::updateInvestmentBalance, viewModel::contributeToInvestment, viewModel::deleteInvestmentSnapshot, viewModel::deleteTransaction, viewModel::updateTransaction, viewModel::recordTransaction, viewModel::setNeurodiverseMode, viewModel::setCurrency, viewModel::setDateFormatPreference, viewModel::setSavedLedgerView, viewModel::saveNirmalamAi, viewModel::disableNirmalamAi, viewModel::requestNirmalamAiInsight, viewModel::exportInterchangeReport, viewModel::exportNdfBackup, viewModel::importNdfBackup, viewModel::saveCategory, viewModel::updateCategory, viewModel::deleteCategory, viewModel::savePayee, viewModel::updatePayee, viewModel::deletePayee, viewModel::removeStarterData, viewModel::confirmPurchase, viewModel::discardPurchase, viewModel::setShowInvestmentPerformance,
+                { metrics ->
+                    pendingMetrics = metrics
+                    createPdfFile.launch("nivesha-performance-report.pdf")
+                },
+                viewModel::clearMessage
+            )
             else UnlockScreen(state.isLoading, state.message, viewModel::unlock, viewModel::clearMessage)
         }
     }
@@ -657,7 +689,7 @@ private fun UnlockScreen(loading: Boolean, message: String?, onUnlock: (String) 
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, (AccountEntity) -> Unit) -> Unit, onUpdateInvestmentAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestmentAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onDismissMessage: () -> Unit) {
+private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, (AccountEntity) -> Unit) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onShowInvestmentPerformance: (Boolean) -> Unit, onExportPerformancePdf: (List<InvestmentPerformanceMetric>) -> Unit, onDismissMessage: () -> Unit) {
     var showAccountSetup by remember { mutableStateOf(false) }
     var accountSetupProduct by remember { mutableStateOf(AccountProductType.CASH) }
     var addKhataMenuExpanded by remember { mutableStateOf(false) }
@@ -672,11 +704,12 @@ private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPro
     var showSettings by remember { mutableStateOf(false) }
     if (showReports) { IncomeExpenseReportsScreen(state, onBack = { showReports = false }); return }
     if (showTransactions) { TransactionHistoryScreen(state, onBack = { showTransactions = false }, onReports = { showTransactions = false; showReports = true }, onDelete = onDeleteTransaction, onUpdate = onUpdateTransaction, onRecord = onRecordTransaction, onSavedLedgerViewChanged = onSavedLedgerViewChanged); return }
-    if (showSettings) { SettingsScreen(state, onBack = { showSettings = false }, onNeurodiverseModeChanged = onNeurodiverseModeChanged, onCurrencyChanged = onCurrencyChanged, onDateFormatPreferenceChanged = onDateFormatPreferenceChanged, onSaveNirmalamAi = onSaveNirmalamAi, onDisableNirmalamAi = onDisableNirmalamAi, onNirmalamAiInsight = onNirmalamAiInsight, onExportInterchange = onExportInterchange, onExportNdf = onExportNdf, onImportNdf = onImportNdf, onSaveCategory = onSaveCategory, onUpdateCategory = onUpdateCategory, onDeleteCategory = onDeleteCategory, onSavePayee = onSavePayee, onUpdatePayee = onUpdatePayee, onDeletePayee = onDeletePayee, onRemoveStarterData = onRemoveStarterData); return }
+    if (showSettings) { SettingsScreen(state, onBack = { showSettings = false }, onNeurodiverseModeChanged = onNeurodiverseModeChanged, onCurrencyChanged = onCurrencyChanged, onDateFormatPreferenceChanged = onDateFormatPreferenceChanged, onSaveNirmalamAi = onSaveNirmalamAi, onDisableNirmalamAi = onDisableNirmalamAi, onNirmalamAiInsight = onNirmalamAiInsight, onExportInterchange = onExportInterchange, onExportNdf = onExportNdf, onImportNdf = onImportNdf, onSaveCategory = onSaveCategory, onUpdateCategory = onUpdateCategory, onDeleteCategory = onDeleteCategory, onSavePayee = onSavePayee, onUpdatePayee = onUpdatePayee, onDeletePayee = onDeletePayee, onUpdateAccount = onUpdateAccount, onArchiveAccount = onArchiveAccount, onRemoveStarterData = onRemoveStarterData); return }
+    if (state.showInvestmentPerformance) { InvestmentPerformanceReportScreen(state, onBack = { onShowInvestmentPerformance(false) }, onExportPdf = { metrics -> onExportPerformancePdf(metrics) }); return }
     if (showNetWorth) { NetWorthDashboardScreen(state, onBack = { showNetWorth = false }, onOpenPortfolio = { showNetWorth = false; showPortfolio = true }); return }
     if (showPortfolio) {
-        PortfolioAndNetWorthScreen(state, onBack = { showPortfolio = false }, onOpenNetWorth = { showPortfolio = false; showNetWorth = true }, onAddInvestment = { accountSetupProduct = AccountProductType.MUTUAL_FUNDS; showAccountSetup = true; showPortfolio = false }, onRecordBalance = { showInvestmentCheckIn = true }, onDeleteSnapshot = onDeleteInvestmentSnapshot, onUpdateSnapshot = onUpdateInvestmentBalance, onUpdateInvestment = onUpdateInvestmentAccount, onArchiveInvestment = onArchiveInvestmentAccount)
-        if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, state.dateFormatPreference, onDismiss = { showInvestmentCheckIn = false }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false })
+        PortfolioAndNetWorthScreen(state, onBack = { showPortfolio = false }, onOpenNetWorth = { showPortfolio = false; showNetWorth = true }, onOpenPerformanceReport = { onShowInvestmentPerformance(true) }, onAddInvestment = { accountSetupProduct = AccountProductType.MUTUAL_FUNDS; showAccountSetup = true; showPortfolio = false }, onRecordBalance = { showInvestmentCheckIn = true }, onDeleteSnapshot = onDeleteInvestmentSnapshot, onUpdateSnapshot = onUpdateInvestmentBalance, onUpdateInvestment = onUpdateAccount, onArchiveInvestment = onArchiveAccount)
+        if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, state.investmentHistory, state.dateFormatPreference, onDismiss = { showInvestmentCheckIn = false }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false })
         if (showContribution) InvestmentContributionDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showContribution = false }, onSave = { id, amount, payee -> onContributeToInvestment(id, amount, payee); showContribution = false })
         return
     }
@@ -732,7 +765,7 @@ private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPro
                         val liquidAndReserve = state.accountBalances.filter { it.kind == AccountKind.SAVINGS || it.kind == AccountKind.EMERGENCY }.sumOf { it.balancePaise }
                         val netWorth = state.cashPaise + liquidAndReserve + portfolioValue
                         val latestCheckIn = state.investmentSnapshots.maxOfOrNull { it.asOfEpochDay }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("NIVESHA · PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                             Box {
                                 IconButton(onClick = { addKhataMenuExpanded = true }) { Text("+", style = MaterialTheme.typography.headlineSmall) }
@@ -743,6 +776,7 @@ private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPro
                                     DropdownMenuItem(text = { Text("Mutual fund or ETF") }, onClick = { accountSetupProduct = AccountProductType.MUTUAL_FUNDS; addKhataMenuExpanded = false; showAccountSetup = true })
                                     DropdownMenuItem(text = { Text("Direct stocks") }, onClick = { accountSetupProduct = AccountProductType.STOCKS; addKhataMenuExpanded = false; showAccountSetup = true })
                                     DropdownMenuItem(text = { Text("Bullion — gold or silver") }, onClick = { accountSetupProduct = AccountProductType.BULLION; addKhataMenuExpanded = false; showAccountSetup = true })
+                                    DropdownMenuItem(text = { Text("Real estate") }, onClick = { accountSetupProduct = AccountProductType.REAL_ESTATE; addKhataMenuExpanded = false; showAccountSetup = true })
                                     DropdownMenuItem(text = { Text("Retirement investment") }, onClick = { accountSetupProduct = AccountProductType.PPF; addKhataMenuExpanded = false; showAccountSetup = true })
                                 }
                             }
@@ -752,10 +786,10 @@ private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPro
                         PortfolioValueChart(state.investmentHistory, state.currencyCode, compact = true)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column { Text("INVESTED", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(formatMoney(portfolioCost, state.currencyCode), style = MaterialTheme.typography.titleSmall) }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) { Text("RETURN", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("${formatMoney(gain, state.currencyCode, includeSign = true)} · ${"%.1f".format(returnPercent)}%", style = MaterialTheme.typography.titleSmall, color = if (gain < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
+                            Column(horizontalAlignment = Alignment.End) { Text("RETURN", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("${formatMoney(gain, state.currencyCode, includeSign = true)} · ${"%.1f".format(returnPercent)}%", style = MaterialTheme.typography.titleSmall, color = if (gain < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column { Text("SAMPADA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(formatMoney(netWorth, state.currencyCode), style = MaterialTheme.typography.titleMedium) }
                             Text("Cash, reserves & Nivesha", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -812,7 +846,7 @@ private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPro
             dismissButton = { TextButton(onClick = { createdInvestment = null }) { Text("Done") } }
         )
     }
-    if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, state.dateFormatPreference, initialAccountId = initialInvestmentCheckInId, onDismiss = { showInvestmentCheckIn = false; initialInvestmentCheckInId = null }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false; initialInvestmentCheckInId = null })
+    if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, state.investmentHistory, state.dateFormatPreference, initialAccountId = initialInvestmentCheckInId, onDismiss = { showInvestmentCheckIn = false; initialInvestmentCheckInId = null }, onSave = { accountId, date, cost, value, contribution, note -> onSaveInvestmentBalance(accountId, date, cost, value, contribution, note); showInvestmentCheckIn = false; initialInvestmentCheckInId = null })
     if (showContribution) InvestmentContributionDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showContribution = false }, onSave = { id, amount, payee -> onContributeToInvestment(id, amount, payee); showContribution = false })
 }
 
@@ -893,7 +927,7 @@ private fun HomeMoneyPulse(transactions: List<TransactionEntity>, currencyCode: 
 
     ElevatedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("MONEY PULSE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text("Last 7 days", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -958,7 +992,7 @@ private fun PortfolioValueChart(history: List<InvestmentBalanceSnapshotEntity>, 
     val costColor = MaterialTheme.colorScheme.tertiary
     val allValues = points.flatMap { listOf(it.costPaise, it.valuePaise) }
     val min = allValues.minOrNull() ?: 0L
-    val max = allValues.maxOrNull() ?: min + 1L
+    val max = allValues.maxOrNull() ?: (min + 1L)
     val spread = (max - min).coerceAtLeast(1L).toFloat()
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1021,7 +1055,8 @@ private enum class NdfFileAction { EXPORT, IMPORT }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit) {
+private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onRemoveStarterData: () -> Unit) {
+    var showKhataManagement by remember { mutableStateOf(false) }
     var showVargaManagement by remember { mutableStateOf(false) }
     var showVyaktiManagement by remember { mutableStateOf(false) }
     var showUserGuide by remember { mutableStateOf(false) }
@@ -1050,6 +1085,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
     if (showPrivacy) { PrivacyAndPermissionsScreen(onBack = { showPrivacy = false }); return }
     if (showAbout) { AboutScreen(onBack = { showAbout = false }); return }
     if (showNirmalamAi) { NirmalamAiScreen(state, onBack = { showNirmalamAi = false }, onSave = onSaveNirmalamAi, onDisable = onDisableNirmalamAi, onInsight = onNirmalamAiInsight); return }
+    if (showKhataManagement) { KhataManagementScreen(state, onBack = { showKhataManagement = false }, onUpdate = onUpdateAccount, onArchive = onArchiveAccount); return }
     if (showVargaManagement) { VargaManagementScreen(state.categories, onBack = { showVargaManagement = false }, onSave = onSaveCategory, onUpdate = onUpdateCategory, onDelete = onDeleteCategory); return }
     if (showVyaktiManagement) { VyaktiManagementScreen(state.payees, state.categories, onBack = { showVyaktiManagement = false }, onSave = onSavePayee, onUpdate = onUpdatePayee, onDelete = onDeletePayee); return }
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = { TopAppBar(title = { Text("Vinyasa") }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }) }) { padding ->
@@ -1090,13 +1126,14 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
             }
             item {
                 ElevatedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
-                    Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column { Text("User guide", style = MaterialTheme.typography.titleMedium); Text("Concepts, features, and FAQ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         TextButton(onClick = { showUserGuide = true }) { Text("Open") }
                     }
                 }
             }
             item { ManagementLinkCard("About", "App version, support, privacy, and acknowledgements", onClick = { showAbout = true }) }
+            item { ManagementLinkCard("Khata", "${state.accounts.size} Khatas · edit names and types or archive", onClick = { showKhataManagement = true }) }
             item { ManagementLinkCard("Varga", "${state.categories.size} categories · create, search, edit, and organise", onClick = { showVargaManagement = true }) }
             item { ManagementLinkCard("Vyakti", "${state.payees.size} saved people, shops, and institutions", onClick = { showVyaktiManagement = true }) }
             item { ManagementLinkCard("Nirmalam AI", if (state.nirmalamAiReady) "BYOL enabled · preset private insights" else "Optional BYOL insights · disabled", onClick = { showNirmalamAi = true }) }
@@ -1133,7 +1170,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
             }
             item {
                 ElevatedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
-                    Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("Privacy & permissions", style = MaterialTheme.typography.titleMedium); Text("Local encryption, data sharing, and backup guidance", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         TextButton(onClick = { showPrivacy = true }) { Text("Review") }
                     }
@@ -1184,7 +1221,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
                         singleLine = true
                     )
                     if (action == NdfFileAction.IMPORT) {
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = importReplacementConfirmed, onCheckedChange = { importReplacementConfirmed = it })
                             Text("I understand that a successful restore replaces this device's current local finance database.", style = MaterialTheme.typography.bodySmall)
                         }
@@ -1209,7 +1246,7 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave: (String, String, String, Boolean) -> Unit, onDisable: () -> Unit, onInsight: (NirmalamAiInsight) -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val saved = remember { NirmalamAiPreferences(context).settings() }
     var endpoint by remember { mutableStateOf(saved.endpoint) }
     var model by remember { mutableStateOf(saved.model) }
@@ -1235,7 +1272,7 @@ private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave:
                 item { OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text("Model") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
                 item { OutlinedTextField(apiKey, { apiKey = it }, Modifier.fillMaxWidth(), label = { Text("API key") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
                 item {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = consent, onCheckedChange = { consent = it })
                         Text("I understand that pressing a preset sends only the displayed aggregate summary to my chosen provider. No raw Vyavahara, Vyakti, descriptions, or account IDs are sent.", style = MaterialTheme.typography.bodySmall)
                     }
@@ -1247,7 +1284,7 @@ private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave:
                 items(NirmalamAiInsight.entries.size) { index ->
                     val insight = NirmalamAiInsight.entries[index]
                     ElevatedCard(onClick = { if (!state.nirmalamAiLoading) onInsight(insight) }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
-                        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) { Text(insight.title, style = MaterialTheme.typography.titleMedium); Text(insight.prompt, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             Text("›", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
                         }
@@ -1264,7 +1301,7 @@ private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave:
 @Composable
 private fun ManagementLinkCard(title: String, subtitle: String, onClick: () -> Unit) {
     ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
-        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleMedium); Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Text("›", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
         }
@@ -1287,7 +1324,7 @@ private fun VargaManagementScreen(categories: List<CategoryEntity>, onBack: () -
                 ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (editingId == category.id) InlineCategoryEditor(category, onCancel = { editingId = null }, onSave = { name, direction, icon -> onUpdate(category.id, name, direction, icon); editingId = null })
                     else {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             IconifiedCategoryLabel(category.name, category.iconKey)
                             Row { TextButton(onClick = { editingId = category.id }) { Text("Modify") }; if (!category.isSystem) TextButton(onClick = { onDelete(category.id) }) { Text("Remove") } }
                         }
@@ -1314,7 +1351,7 @@ private fun VyaktiManagementScreen(payees: List<PayeeEntity>, categories: List<C
                 val payee = shown[index]
                 ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (editingId == payee.id) InlinePayeeEditor(payee, categories, onCancel = { editingId = null }, onSave = { name, category -> onUpdate(payee.id, name, category); editingId = null })
-                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column { Text(payee.name, style = MaterialTheme.typography.titleSmall); Text(payee.defaultCategory?.let { "Default Varga · $it" } ?: "No default Varga", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         Row { TextButton(onClick = { editingId = payee.id }) { Text("Modify") }; TextButton(onClick = { onDelete(payee.id) }) { Text("Remove") } }
                     }
@@ -1323,6 +1360,74 @@ private fun VyaktiManagementScreen(payees: List<PayeeEntity>, categories: List<C
         }
     }
     if (showNew) PayeeEditorDialog(categories, onDismiss = { showNew = false }, onSave = { name, category -> onSave(name, category); showNew = false })
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun KhataManagementScreen(state: MvpFinanceState, onBack: () -> Unit, onUpdate: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchive: (String) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var khataToArchive by remember { mutableStateOf<AccountEntity?>(null) }
+    val shown = state.accounts.filter { it.name.contains(query.trim(), ignoreCase = true) }
+    Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = { TopAppBar(title = { Column { Text("Khata"); Text("Money places", style = MaterialTheme.typography.labelMedium) } }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }) }) { padding ->
+        LazyColumn(Modifier.padding(padding).padding(horizontal = 20.dp), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Search Khata") }, placeholder = { Text("Account name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
+            items(shown.size) { index ->
+                val account = shown[index]
+                ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (editingId == account.id) InlineKhataEditor(account, onCancel = { editingId = null }, onSave = { name, product, assetClass, target -> onUpdate(account.id, name, product, assetClass, target); editingId = null })
+                    else {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Text(account.name, style = MaterialTheme.typography.titleSmall)
+                                Text(account.productType.name.replace('_', ' '), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row {
+                                TextButton(onClick = { editingId = account.id }) { Text("Modify") }
+                                TextButton(onClick = { khataToArchive = account }) { Text("Archive") }
+                            }
+                        }
+                    }
+                } }
+            }
+        }
+    }
+    khataToArchive?.let { account -> AlertDialog(onDismissRequest = { khataToArchive = null }, title = { Text("Archive Khata?") }, text = { Text("${account.name} will be hidden from active views. Its history remains safely in this encrypted database.") }, confirmButton = { Button(onClick = { onArchive(account.id); khataToArchive = null }) { Text("Archive") } }, dismissButton = { TextButton(onClick = { khataToArchive = null }) { Text("Cancel") } }) }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun InlineKhataEditor(account: AccountEntity, onCancel: () -> Unit, onSave: (String, AccountProductType, AssetClass, String) -> Unit) {
+    var name by remember(account.id) { mutableStateOf(account.name) }
+    var product by remember(account.id) { mutableStateOf(account.productType) }
+    var assetClass by remember(account.id) { mutableStateOf(account.assetClass) }
+    var target by remember(account.id) { mutableStateOf((account.targetAllocationBps / 100.0).toString()) }
+    var productExpanded by remember(account.id) { mutableStateOf(false) }
+    var classExpanded by remember(account.id) { mutableStateOf(false) }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Text("Modify Khata", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Khata name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
+    ExposedDropdownMenuBox(productExpanded, { productExpanded = !productExpanded }) {
+        OutlinedTextField(product.name.replace('_', ' '), {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Product type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(productExpanded) })
+        ExposedDropdownMenu(productExpanded, { productExpanded = false }) {
+            Text("DAILY KHATAS", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelSmall)
+            listOf(AccountProductType.CASH, AccountProductType.BANK).forEach { type -> DropdownMenuItem(text = { Text(type.name.replace('_', ' ')) }, onClick = { product = type; assetClass = suggestedAssetClass(type); productExpanded = false }) }
+            HorizontalDivider()
+            Text("LIABILITIES", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelSmall)
+            listOf(AccountProductType.CREDIT_CARD, AccountProductType.LOAN).forEach { type -> DropdownMenuItem(text = { Text(type.name.replace('_', ' ')) }, onClick = { product = type; assetClass = suggestedAssetClass(type); productExpanded = false }) }
+            HorizontalDivider()
+            Text("INVESTMENT HOLDINGS", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelSmall)
+            investmentProductTypes.forEach { type -> DropdownMenuItem(text = { Text(type.name.replace('_', ' ')) }, onClick = { product = type; assetClass = suggestedAssetClass(type); productExpanded = false }) }
+        }
+    }
+    ExposedDropdownMenuBox(classExpanded, { classExpanded = !classExpanded }) {
+        OutlinedTextField(assetClass.name, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Asset class") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(classExpanded) })
+        ExposedDropdownMenu(classExpanded, { classExpanded = false }) { AssetClass.entries.forEach { type -> DropdownMenuItem(text = { Text(type.name) }, onClick = { assetClass = type; classExpanded = false }) } }
+    }
+    if (product in investmentProductTypes) {
+        OutlinedTextField(target, { target = it }, Modifier.fillMaxWidth(), label = { Text("Target allocation (%)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { Text("Cancel") }; Button(onClick = { onSave(name, product, assetClass, target) }, enabled = name.isNotBlank()) { Text("Save") } }
 }
 
 @Composable
@@ -1426,7 +1531,7 @@ private fun InlinePayeeEditor(payee: PayeeEntity, categories: List<CategoryEntit
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun PrivacyAndPermissionsScreen(onBack: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = { TopAppBar(title = { Text("Privacy & permissions") }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }) }) { padding ->
         LazyColumn(Modifier.padding(padding).padding(horizontal = 20.dp), contentPadding = PaddingValues(vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item { Text("Your data stays yours", style = MaterialTheme.typography.headlineSmall) }
@@ -1448,7 +1553,7 @@ private fun PrivacySection(title: String, body: String) {
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun AboutScreen(onBack: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val versionLabel = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
     val packageName = context.packageName
     val contactIntent = remember {
@@ -1470,18 +1575,18 @@ private fun AboutScreen(onBack: () -> Unit) {
                     Column(
                         Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier.size(88.dp)
                         ) {
-                            Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                            Box(contentAlignment = Alignment.Center) {
                                 Text("ND", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
                         }
-                        Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Nirmalam Dhanam", style = MaterialTheme.typography.headlineSmall)
                             Text("A clear, private money practice", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("Version $versionLabel", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
@@ -1537,7 +1642,7 @@ private fun AboutDetailRow(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium)
@@ -1754,7 +1859,7 @@ private fun IncomeExpenseReportsScreen(state: MvpFinanceState, onBack: () -> Uni
         .entries.sortedByDescending { kotlin.math.abs(it.value) }
     val categoryIcons = state.categories.associate { it.name to it.iconKey }
     val accountNames = state.accounts.associate { it.id to it.name }
-    val monthly = entries.groupBy { java.time.YearMonth.from(Instant.ofEpochMilli(it.occurredAtEpochMs).atZone(ZoneId.systemDefault())) }
+    val monthly = entries.groupBy { YearMonth.from(Instant.ofEpochMilli(it.occurredAtEpochMs).atZone(ZoneId.systemDefault())) }
         .toSortedMap(compareByDescending { it }).entries.take(6)
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -1780,8 +1885,8 @@ private fun IncomeExpenseReportsScreen(state: MvpFinanceState, onBack: () -> Uni
                         Text("CASHFLOW SUMMARY", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column { Text("AAYA", style = MaterialTheme.typography.labelSmall); Text(formatMoney(income, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) { Text("NET", style = MaterialTheme.typography.labelSmall); Text(formatMoney(net, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleMedium, color = if (net < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) { Text("VYAYA", style = MaterialTheme.typography.labelSmall); Text(formatMoney(-expense, state.currencyCode), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error) }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("NET", style = MaterialTheme.typography.labelSmall); Text(formatMoney(net, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleMedium, color = if (net < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
+                            Column(horizontalAlignment = Alignment.End) { Text("VYAYA", style = MaterialTheme.typography.labelSmall); Text(formatMoney(-expense, state.currencyCode), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error) }
                         }
                         Text("${entries.size} confirmed entries · Holding-tank purchases excluded.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
@@ -1794,7 +1899,7 @@ private fun IncomeExpenseReportsScreen(state: MvpFinanceState, onBack: () -> Uni
                             Text("Period comparison", style = MaterialTheme.typography.titleMedium)
                             Text("Current net ${formatMoney(net, state.currencyCode, includeSign = true)}", style = MaterialTheme.typography.bodyMedium)
                         }
-                        Column(horizontalAlignment = androidx.compose.ui.Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Previous", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(formatMoney(previousNet, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleSmall, color = if (previousNet < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                         }
@@ -1854,6 +1959,114 @@ private fun IncomeExpenseReportsScreen(state: MvpFinanceState, onBack: () -> Uni
             }
         }
     }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun InvestmentPerformanceReportScreen(state: MvpFinanceState, onBack: () -> Unit, onExportPdf: (List<InvestmentPerformanceMetric>) -> Unit) {
+    val monthlyData = remember(state.investmentHistory) {
+        val historyByMonth = state.investmentHistory
+            .groupBy { YearMonth.from(LocalDate.ofEpochDay(it.asOfEpochDay)) }
+            .mapValues { (_, snapshots) -> snapshots.maxBy { it.asOfEpochDay } }
+            .toSortedMap()
+
+        val results = mutableListOf<InvestmentPerformanceMetric>()
+        var priorAppreciation = 0L
+        var priorValue = 0L
+
+        val sortedMonths = historyByMonth.keys.toList()
+        sortedMonths.forEachIndexed { index, month ->
+            val snapshot = historyByMonth[month]!!
+            val cost = snapshot.totalCostPaise
+            val value = snapshot.currentValuePaise
+            val appreciation = value - cost
+            val contribution = snapshot.netContributionPaise
+            
+            val revaluation = if (index == 0) appreciation else appreciation - priorAppreciation
+            val totalGainPercent = if (cost == 0L) null else appreciation * 100.0 / cost
+            val monthlyReturnPercent = if (index == 0) 100.0 else if (priorAppreciation == 0L) null else revaluation * 100.0 / priorAppreciation
+            val portfolioReturnPercent = if (index == 0) null else if (priorValue == 0L) null else revaluation * 100.0 / priorValue
+
+            val historyUpToNow = state.investmentHistory.filter { it.asOfEpochDay <= snapshot.asOfEpochDay }
+            val xirr = FinancialCalculations.xirrPercent(cashFlowsForXirr(historyUpToNow))
+
+            results.add(InvestmentPerformanceMetric(month, cost, value, contribution, appreciation, revaluation, totalGainPercent, monthlyReturnPercent, portfolioReturnPercent, xirr))
+            priorAppreciation = appreciation
+            priorValue = value
+        }
+        results.reversed()
+    }
+
+    Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = {
+            TopAppBar(
+                title = { Column { Text("Nivesha performance"); Text("Periodical return analysis", style = MaterialTheme.typography.labelMedium) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } },
+                actions = {
+                    TextButton(onClick = { onExportPdf(monthlyData) }) { Text("PDF") }
+                }
+            )
+        }
+    ) { padding ->
+        if (monthlyData.isEmpty()) {
+            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Record monthly Nivesha balance check-ins to see performance analysis.", textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(32.dp))
+            }
+        } else {
+            Column(Modifier.padding(padding).fillMaxSize()) {
+                val scrollState = rememberScrollState()
+                val monthFormatter = remember { DateTimeFormatter.ofPattern("MMM yyyy", Locale.US) }
+
+                Box(Modifier.horizontalScroll(scrollState)) {
+                    Column {
+                        // Header
+                        Row(Modifier.background(MaterialTheme.colorScheme.primaryContainer).padding(vertical = 12.dp, horizontal = 16.dp)) {
+                            PerformanceHeaderCell("Month", 100)
+                            PerformanceHeaderCell("Cost", 120)
+                            PerformanceHeaderCell("Mkt Value", 120)
+                            PerformanceHeaderCell("Contrib.", 110)
+                            PerformanceHeaderCell("Apprec.", 120)
+                            PerformanceHeaderCell("Reval.", 120)
+                            PerformanceHeaderCell("Gain %", 80)
+                            PerformanceHeaderCell("Month %", 80)
+                            PerformanceHeaderCell("Port %", 80)
+                            PerformanceHeaderCell("XIRR %", 80)
+                        }
+                        
+                        LazyColumn(Modifier.weight(1f)) {
+                            items(monthlyData.size) { index ->
+                                val metric = monthlyData[index]
+                                Row(Modifier.padding(vertical = 10.dp, horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    PerformanceCell(metric.month.format(monthFormatter), 100, isTitle = true)
+                                    PerformanceCell(formatMoney(metric.cost, state.currencyCode), 120)
+                                    PerformanceCell(formatMoney(metric.value, state.currencyCode), 120)
+                                    PerformanceCell(formatMoney(metric.contribution, state.currencyCode), 110)
+                                    PerformanceCell(formatMoney(metric.appreciation, state.currencyCode), 120, color = if (metric.appreciation < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                                    PerformanceCell(formatMoney(metric.revaluation, state.currencyCode, includeSign = true), 120, color = if (metric.revaluation < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                                    PerformanceCell(formatPercent(metric.totalGainPercent), 80, color = if ((metric.totalGainPercent ?: 0.0) < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                                    PerformanceCell(formatPercent(metric.monthlyReturnPercent), 80, color = if ((metric.monthlyReturnPercent ?: 0.0) < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                                    PerformanceCell(formatPercent(metric.portfolioReturnPercent), 80, color = if ((metric.portfolioReturnPercent ?: 0.0) < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                                    PerformanceCell(formatPercent(metric.xirrPercent), 80, color = if ((metric.xirrPercent ?: 0.0) < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                                }
+                                HorizontalDivider(Modifier.width((100 + 120 * 4 + 110 + 80 * 4).dp), color = MaterialTheme.colorScheme.outlineVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PerformanceHeaderCell(text: String, width: Int) {
+    Text(text, Modifier.width(width.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+}
+
+@Composable
+private fun PerformanceCell(text: String, width: Int, isTitle: Boolean = false, color: Color = MaterialTheme.colorScheme.onSurface) {
+    Text(text, Modifier.width(width.dp), style = MaterialTheme.typography.bodySmall, color = color, maxLines = 1, textAlign = if (isTitle) TextAlign.Start else TextAlign.End)
 }
 
 @Composable
@@ -1969,7 +2182,6 @@ private fun NewVyavaharaDialog(categories: List<CategoryEntity>, payees: List<Pa
     val liquidAccounts = accounts.filter { it.kind == AccountKind.SPENDING || it.kind == AccountKind.CREDIT }
     var accountId by remember(liquidAccounts, preferredAccountId) { mutableStateOf(preferredAccountId?.takeIf { id -> liquidAccounts.any { it.id == id } } ?: liquidAccounts.firstOrNull()?.id.orEmpty()) }
     val selectedAccount = liquidAccounts.firstOrNull { it.id == accountId }
-    val options = categories
     val recentPayees = recentTransactions.mapNotNull { it.payee?.takeIf(String::isNotBlank) }.distinct().take(4)
     val recentCategories = recentTransactions.mapNotNull { it.category?.takeIf(String::isNotBlank) }.distinct().take(4)
     AlertDialog(
@@ -2015,7 +2227,7 @@ private fun NewVyavaharaDialog(categories: List<CategoryEntity>, payees: List<Pa
                 }
                 ExposedDropdownMenuBox(expanded = categoryExpanded, onExpandedChange = { categoryExpanded = !categoryExpanded }) {
                     OutlinedTextField(category, { category = it; categoryExpanded = true }, Modifier.menuAnchor().fillMaxWidth(), label = { Text("Varga") }, singleLine = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) })
-                    ExposedDropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) { options.filter { it.name.contains(category, ignoreCase = true) }.forEach { option -> DropdownMenuItem(text = { IconifiedCategoryLabel(option.name, option.iconKey) }, onClick = { category = option.name; categoryExpanded = false }) } }
+                    ExposedDropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) { categories.filter { it.name.contains(category, ignoreCase = true) }.forEach { option -> DropdownMenuItem(text = { IconifiedCategoryLabel(option.name, option.iconKey) }, onClick = { category = option.name; categoryExpanded = false }) } }
                 }
                 if (recentCategories.isNotEmpty()) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2108,7 +2320,7 @@ private fun LedgerMetric(label: String, value: String, color: Color) {
 /** Category glyphs are deliberately label-backed, so their meaning never depends on colour alone. */
 @Composable
 private fun IconifiedCategoryLabel(category: String, iconKey: String? = null, compact: Boolean = false) {
-    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp), verticalAlignment = Alignment.CenterVertically) {
         CategoryGlyph(iconKey ?: category, if (compact) 22.dp else 28.dp)
         Text(category, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyLarge)
     }
@@ -2137,7 +2349,7 @@ private fun CategoryGlyph(category: String, size: androidx.compose.ui.unit.Dp = 
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
     ) {
-        Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+        Box(contentAlignment = Alignment.Center) {
             Text(glyph, style = if (size <= 22.dp) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleSmall)
         }
     }
@@ -2233,12 +2445,13 @@ private fun NetWorthDashboardScreen(state: MvpFinanceState, onBack: () -> Unit, 
             latestTrendDelta?.let { delta ->
                 item {
                     ElevatedCard(Modifier.fillMaxWidth()) {
-                        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column {
+                        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
                                 Text("Latest Sampada move", style = MaterialTheme.typography.titleMedium)
                                 Text("Compared with the previous dated snapshot", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(formatMoney(delta, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleMedium, color = if (delta < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Text(formatMoney(delta, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleMedium, color = if (delta < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, maxLines = 1)
                         }
                     }
                 }
@@ -2282,7 +2495,7 @@ private fun NetWorthDashboardScreen(state: MvpFinanceState, onBack: () -> Unit, 
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Unit, onOpenNetWorth: () -> Unit, onAddInvestment: () -> Unit, onRecordBalance: () -> Unit, onDeleteSnapshot: (String) -> Unit, onUpdateSnapshot: (String, String, String, String, String, String, String) -> Unit, onUpdateInvestment: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestment: (String) -> Unit) {
+private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Unit, onOpenNetWorth: () -> Unit, onOpenPerformanceReport: () -> Unit, onAddInvestment: () -> Unit, onRecordBalance: () -> Unit, onDeleteSnapshot: (String) -> Unit, onUpdateSnapshot: (String, String, String, String, String, String, String) -> Unit, onUpdateInvestment: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveInvestment: (String) -> Unit) {
     var editingSnapshotId by remember { mutableStateOf<String?>(null) }
     var editingInvestmentId by remember { mutableStateOf<String?>(null) }
     var investmentToArchive by remember { mutableStateOf<AccountEntity?>(null) }
@@ -2298,7 +2511,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
         val reserves = state.accountBalances.filter { it.kind == AccountKind.SAVINGS || it.kind == AccountKind.EMERGENCY }.sumOf { it.balancePaise }
         state.cashPaise + reserves + portfolioValue
     }
-    Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = { TopAppBar(title = { Column { Text("Nivesha & Sampada"); Text("Investments and overall wealth", style = MaterialTheme.typography.labelMedium) } }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }, actions = { TextButton(onClick = onOpenNetWorth) { Text("Sampada") }; TextButton(onClick = onAddInvestment) { Text("Add") }; TextButton(onClick = onRecordBalance) { Text("Check-in") } }) }) { padding ->
+    Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = { TopAppBar(title = { Column { Text("Nivesha & Sampada"); Text("Investments and overall wealth", style = MaterialTheme.typography.labelMedium) } }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }, actions = { TextButton(onClick = onOpenPerformanceReport) { Text("Performance") }; TextButton(onClick = onOpenNetWorth) { Text("Sampada") }; TextButton(onClick = onAddInvestment) { Text("Add") }; TextButton(onClick = onRecordBalance) { Text("Check-in") } }) }) { padding ->
         LazyColumn(Modifier.padding(padding).padding(horizontal = 20.dp), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
@@ -2308,7 +2521,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                         HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column { Text("NIVESHA VALUE", style = MaterialTheme.typography.labelSmall); Text(formatMoney(portfolioValue, state.currencyCode), style = MaterialTheme.typography.titleMedium) }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) { Text("TOTAL RETURN", style = MaterialTheme.typography.labelSmall); Text("${formatMoney(portfolioAbsolutePaise, state.currencyCode, includeSign = true)} · ABS ${formatPercent(portfolioAbsolutePercent)}", style = MaterialTheme.typography.titleSmall, color = if (portfolioAbsolutePaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer); Text("XIRR ${formatPercent(portfolioXirr)}", style = MaterialTheme.typography.labelSmall) }
+                            Column(horizontalAlignment = Alignment.End) { Text("TOTAL RETURN", style = MaterialTheme.typography.labelSmall); Text("${formatMoney(portfolioAbsolutePaise, state.currencyCode, includeSign = true)} · ABS ${formatPercent(portfolioAbsolutePercent)}", style = MaterialTheme.typography.titleSmall, color = if (portfolioAbsolutePaise < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer); Text("XIRR ${formatPercent(portfolioXirr)}", style = MaterialTheme.typography.labelSmall) }
                         }
                     }
                 }
@@ -2322,12 +2535,13 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
             portfolioTrendDelta?.let { delta ->
                 item {
                     ElevatedCard(Modifier.fillMaxWidth()) {
-                        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column {
+                        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
                                 Text("Latest Nivesha move", style = MaterialTheme.typography.titleMedium)
                                 Text("Change from the previous portfolio check-in", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(formatMoney(delta, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleMedium, color = if (delta < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Text(formatMoney(delta, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleMedium, color = if (delta < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, maxLines = 1)
                         }
                     }
                 }
@@ -2341,7 +2555,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                 ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) { Text(account?.name ?: "Investment", style = MaterialTheme.typography.titleSmall); Text(account?.productType?.name?.replace('_', ' ') ?: "Asset", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); account?.benchmarkIndexName?.let { Text("Benchmark · $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }; Text("Cost ${formatMoney(snapshot.totalCostPaise, state.currencyCode)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) { Text(formatMoney(snapshot.currentValuePaise, state.currencyCode), style = MaterialTheme.typography.titleMedium); Text("${"%.1f".format(allocation)}% allocation · ABS ${formatPercent(performance?.absolutePercent)}", style = MaterialTheme.typography.bodySmall, color = if ((performance?.absolutePaise ?: 0L) < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary); Text("XIRR ${formatPercent(performance?.xirrPercent)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Column(horizontalAlignment = Alignment.End) { Text(formatMoney(snapshot.currentValuePaise, state.currencyCode), style = MaterialTheme.typography.titleMedium); Text("${"%.1f".format(allocation)}% allocation · ABS ${formatPercent(performance?.absolutePercent)}", style = MaterialTheme.typography.bodySmall, color = if ((performance?.absolutePaise ?: 0L) < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary); Text("XIRR ${formatPercent(performance?.xirrPercent)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                     account?.let { investment ->
                         if (editingInvestmentId == investment.id) InlineInvestmentEditor(investment, onCancel = { editingInvestmentId = null }, onSave = { name, product, assetClass, target -> onUpdateInvestment(investment.id, name, product, assetClass, target); editingInvestmentId = null })
@@ -2383,16 +2597,17 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                 val snapshot = history[index]
                 val account = state.accounts.firstOrNull { it.id == snapshot.accountId }
                 val performance = investmentPerformance(historyByInvestment[snapshot.accountId].orEmpty().filter { it.asOfEpochDay <= snapshot.asOfEpochDay })
-                val gain = performance?.absolutePaise ?: snapshot.currentValuePaise - snapshot.totalCostPaise
+                val gain = performance?.absolutePaise
+                    ?: (snapshot.currentValuePaise - snapshot.totalCostPaise)
                 val gainColor = if (gain < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                 ElevatedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text(account?.name ?: "Investment", style = MaterialTheme.typography.titleSmall)
                             Text(account?.productType?.name?.replace('_', ' ') ?: "Nivesha holding", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             account?.benchmarkIndexName?.let { benchmark -> Text("Benchmark · $benchmark", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
                         }
-                        Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                        Column(horizontalAlignment = Alignment.End) {
                             Text("AS ON", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             Text(formatDate(LocalDate.ofEpochDay(snapshot.asOfEpochDay), state.dateFormatPreference), style = MaterialTheme.typography.bodyMedium)
                         }
@@ -2400,8 +2615,8 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Box(Modifier.weight(1f)) { InvestmentHistoryMetric("COST", formatMoney(snapshot.totalCostPaise, state.currencyCode)) }
-                        Box(Modifier.weight(1f)) { InvestmentHistoryMetric("VALUE", formatMoney(snapshot.currentValuePaise, state.currencyCode), alignment = androidx.compose.ui.Alignment.CenterHorizontally) }
-                        Box(Modifier.weight(1f)) { InvestmentHistoryMetric("GAIN / LOSS", formatMoney(gain, state.currencyCode, includeSign = true), gainColor, androidx.compose.ui.Alignment.End) }
+                        Box(Modifier.weight(1f)) { InvestmentHistoryMetric("VALUE", formatMoney(snapshot.currentValuePaise, state.currencyCode), alignment = Alignment.CenterHorizontally) }
+                        Box(Modifier.weight(1f)) { InvestmentHistoryMetric("GAIN / LOSS", formatMoney(gain, state.currencyCode, includeSign = true), gainColor, Alignment.End) }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("ABS ${formatPercent(performance?.absolutePercent)}", style = MaterialTheme.typography.labelMedium, color = gainColor)
@@ -2417,6 +2632,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
                     if (editingSnapshotId == snapshot.id) {
                         InlineInvestmentSnapshotEditor(
                             snapshot = snapshot,
+                            investmentHistory = state.investmentHistory,
                             dateFormatPreference = state.dateFormatPreference,
                             onCancel = { editingSnapshotId = null },
                             onSave = { date, cost, value, contribution, note ->
@@ -2438,7 +2654,7 @@ private fun PortfolioAndNetWorthScreen(state: MvpFinanceState, onBack: () -> Uni
 }
 
 @Composable
-private fun InvestmentHistoryMetric(label: String, value: String, color: Color = MaterialTheme.colorScheme.onSurface, alignment: androidx.compose.ui.Alignment.Horizontal = androidx.compose.ui.Alignment.Start) {
+private fun InvestmentHistoryMetric(label: String, value: String, color: Color = MaterialTheme.colorScheme.onSurface, alignment: Alignment.Horizontal = Alignment.Start) {
     Column(horizontalAlignment = alignment) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.titleSmall, color = color, maxLines = 1)
@@ -2471,12 +2687,28 @@ private fun InlineInvestmentEditor(account: AccountEntity, onCancel: () -> Unit,
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun InlineInvestmentSnapshotEditor(snapshot: InvestmentBalanceSnapshotEntity, dateFormatPreference: DateFormatPreference, onCancel: () -> Unit, onSave: (String, String, String, String, String) -> Unit) {
+private fun InlineInvestmentSnapshotEditor(snapshot: InvestmentBalanceSnapshotEntity, investmentHistory: List<InvestmentBalanceSnapshotEntity>, dateFormatPreference: DateFormatPreference, onCancel: () -> Unit, onSave: (String, String, String, String, String) -> Unit) {
     var date by remember(snapshot.id) { mutableStateOf(LocalDate.ofEpochDay(snapshot.asOfEpochDay)) }
-    var cost by remember(snapshot.id) { mutableStateOf((snapshot.totalCostPaise / 100.0).toString()) }
-    var value by remember(snapshot.id) { mutableStateOf((snapshot.currentValuePaise / 100.0).toString()) }
-    var contribution by remember(snapshot.id) { mutableStateOf((snapshot.netContributionPaise / 100.0).toString()) }
+    var cost by remember(snapshot.id) { mutableStateOf(BigDecimal(snapshot.totalCostPaise).movePointLeft(2).toPlainString()) }
+    var value by remember(snapshot.id) { mutableStateOf(BigDecimal(snapshot.currentValuePaise).movePointLeft(2).toPlainString()) }
+    var contribution by remember(snapshot.id) { mutableStateOf(BigDecimal(snapshot.netContributionPaise).movePointLeft(2).toPlainString()) }
     var note by remember(snapshot.id) { mutableStateOf(snapshot.note.orEmpty()) }
+
+    val priorSnapshot = remember(snapshot.accountId, date, investmentHistory) {
+        investmentHistory
+            .filter { it.accountId == snapshot.accountId && it.asOfEpochDay < date.toEpochDay() && it.id != snapshot.id }
+            .maxByOrNull { it.asOfEpochDay }
+    }
+    fun paiseToRupees(paise: Long) = BigDecimal(paise).movePointLeft(2).toPlainString()
+    fun rupeesToPaise(text: String) = runCatching { BigDecimal(text.trim()).movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact() }.getOrNull()
+
+    LaunchedEffect(priorSnapshot) {
+        rupeesToPaise(cost)?.let { c ->
+            val priorCost = priorSnapshot?.totalCostPaise ?: 0L
+            contribution = paiseToRupees(c - priorCost)
+        }
+    }
+
     var showDatePicker by remember(snapshot.id) { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = LocalDate.ofEpochDay(snapshot.asOfEpochDay).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -2484,9 +2716,35 @@ private fun InlineInvestmentSnapshotEditor(snapshot: InvestmentBalanceSnapshotEn
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify check-in", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     OutlinedTextField(value = formatDate(date, dateFormatPreference), onValueChange = {}, modifier = Modifier.fillMaxWidth(), readOnly = true, label = { Text("As-on date") }, trailingIcon = { TextButton(onClick = { showDatePicker = true }) { Text("Pick") } }, singleLine = true)
-    OutlinedTextField(value = cost, onValueChange = { cost = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Total cost in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+    OutlinedTextField(
+        value = cost,
+        onValueChange = {
+            cost = it
+            rupeesToPaise(it)?.let { c ->
+                val priorCost = priorSnapshot?.totalCostPaise ?: 0L
+                contribution = paiseToRupees(c - priorCost)
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Total cost in ₹") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        singleLine = true
+    )
     OutlinedTextField(value = value, onValueChange = { value = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Current value in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
-    OutlinedTextField(value = contribution, onValueChange = { contribution = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Net contribution in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+    OutlinedTextField(
+        value = contribution,
+        onValueChange = {
+            contribution = it
+            rupeesToPaise(it)?.let { cont ->
+                val priorCost = priorSnapshot?.totalCostPaise ?: 0L
+                cost = paiseToRupees(priorCost + cont)
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Net contribution in ₹") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        singleLine = true
+    )
     OutlinedTextField(value = note, onValueChange = { note = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Statement / note") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         TextButton(onClick = onCancel) { Text("Cancel") }
@@ -2507,7 +2765,7 @@ private fun NetWorthSparkline(values: List<Long>) {
     val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
     Canvas(Modifier.fillMaxWidth().height(88.dp)) {
         val min = values.minOrNull() ?: 0L
-        val max = values.maxOrNull() ?: min + 1L
+        val max = values.maxOrNull() ?: (min + 1L)
         val spread = (max - min).coerceAtLeast(1L).toFloat()
         val path = Path()
         val fill = Path()
@@ -2588,7 +2846,7 @@ private fun AccountSetupDialog(initialProduct: AccountProductType = AccountProdu
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, dateFormatPreference: DateFormatPreference, initialAccountId: String? = null, onDismiss: () -> Unit, onSave: (String, String, String, String, String, String) -> Unit) {
+private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, investmentHistory: List<InvestmentBalanceSnapshotEntity>, dateFormatPreference: DateFormatPreference, initialAccountId: String? = null, onDismiss: () -> Unit, onSave: (String, String, String, String, String, String) -> Unit) {
     var account by remember(accounts, initialAccountId) { mutableStateOf(accounts.firstOrNull { it.id == initialAccountId } ?: accounts.first()) }
     var accountExpanded by remember { mutableStateOf(false) }
     var asOfDate by remember { mutableStateOf(LocalDate.now()) }
@@ -2600,6 +2858,22 @@ private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, dateFo
     var value by remember { mutableStateOf("") }
     var contribution by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+
+    val priorSnapshot = remember(account, asOfDate, investmentHistory) {
+        investmentHistory
+            .filter { it.accountId == account.id && it.asOfEpochDay < asOfDate.toEpochDay() }
+            .maxByOrNull { it.asOfEpochDay }
+    }
+    fun paiseToRupees(paise: Long) = BigDecimal(paise).movePointLeft(2).toPlainString()
+    fun rupeesToPaise(text: String) = runCatching { BigDecimal(text.trim()).movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact() }.getOrNull()
+
+    LaunchedEffect(priorSnapshot) {
+        rupeesToPaise(cost)?.let { c ->
+            val priorCost = priorSnapshot?.totalCostPaise ?: 0L
+            contribution = paiseToRupees(c - priorCost)
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Investment balance check-in") },
@@ -2621,9 +2895,36 @@ private fun InvestmentBalanceCheckInDialog(accounts: List<AccountEntity>, dateFo
                     trailingIcon = { TextButton(onClick = { showDatePicker = true }) { Text("Pick") } },
                     singleLine = true
                 )
-                OutlinedTextField(cost, { cost = it }, Modifier.fillMaxWidth(), label = { Text("Total cost / invested amount in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                OutlinedTextField(
+                    value = cost,
+                    onValueChange = {
+                        cost = it
+                        rupeesToPaise(it)?.let { c ->
+                            val priorCost = priorSnapshot?.totalCostPaise ?: 0L
+                            contribution = paiseToRupees(c - priorCost)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Total cost / invested amount in ₹") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
                 OutlinedTextField(value, { value = it }, Modifier.fillMaxWidth(), label = { Text("Current value in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
-                OutlinedTextField(contribution, { contribution = it }, Modifier.fillMaxWidth(), label = { Text("Net contribution since prior check-in in ₹") }, placeholder = { Text("0 if none") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                OutlinedTextField(
+                    value = contribution,
+                    onValueChange = {
+                        contribution = it
+                        rupeesToPaise(it)?.let { cont ->
+                            val priorCost = priorSnapshot?.totalCostPaise ?: 0L
+                            cost = paiseToRupees(priorCost + cont)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Net contribution since prior check-in in ₹") },
+                    placeholder = { Text("0 if none") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
                 OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text("Statement / note (optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
             }
         },
