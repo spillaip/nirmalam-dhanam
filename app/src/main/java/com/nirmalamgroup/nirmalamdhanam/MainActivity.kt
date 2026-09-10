@@ -91,6 +91,7 @@ internal data class MvpFinanceState(
     val savedLedgerAccountId: String? = null,
     val savedLedgerCategoryName: String? = null,
     val neurodiverseModeEnabled: Boolean = false,
+    val hourlyRatePaise: Long = 10_000,
     val safeToSpendTodayPaise: Long = 50_000,
     val todaySpentPaise: Long = 0,
     val holdingTank: List<TransactionEntity> = emptyList(),
@@ -195,7 +196,7 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
                     val portfolioDetails = combine(opened.investmentBalanceSnapshotDao().observeLatestForAll(), opened.investmentBalanceSnapshotDao().observeAll(), opened.netWorthSnapshotDao().observeAll()) { latest, history, netWorth -> Triple(latest, history, netWorth) }
                     combine(opened.accountDao().observeCashPosition(), accountDetails, opened.configDao().observe(), dayDetails, portfolioDetails) { cash, accountDetailsValue, config, day, portfolio ->
                         val dailyLimit = day.envelopes.firstOrNull { it.type == EnvelopeType.WANTS }?.dailyLimitPaise ?: 50_000
-                        MvpFinanceState(isUnlocked = true, isLoading = false, cashPaise = cash.trueAvailableCashPaise, accounts = accountDetailsValue.accounts, categories = accountDetailsValue.categories, payees = accountDetailsValue.payees, currencyCode = config?.currencyCode ?: "INR", dateFormatPreference = config?.dateFormatPreference ?: DateFormatPreference.DEVICE_LOCALE, savedLedgerRange = config?.savedLedgerRange ?: "MONTH", savedLedgerFilter = config?.savedLedgerFilter ?: "ALL", savedLedgerAccountId = config?.savedLedgerAccountId, savedLedgerCategoryName = config?.savedLedgerCategoryName, neurodiverseModeEnabled = config?.neurodiverseModeEnabled ?: false, safeToSpendTodayPaise = FinancialCalculations.safeToSpend(dailyLimit, day.spent), todaySpentPaise = day.spent, holdingTank = day.holding, accountBalances = accountDetailsValue.balances, investmentSnapshots = portfolio.first, investmentHistory = portfolio.second, netWorthHistory = portfolio.third, recentTransactions = day.recent, nirmalamAiReady = NirmalamAiPreferences(app).isReady(), nirmalamAiLoading = _state.value.nirmalamAiLoading, nirmalamAiResponse = _state.value.nirmalamAiResponse)
+                        MvpFinanceState(isUnlocked = true, isLoading = false, cashPaise = cash.trueAvailableCashPaise, accounts = accountDetailsValue.accounts, categories = accountDetailsValue.categories, payees = accountDetailsValue.payees, currencyCode = config?.currencyCode ?: "INR", dateFormatPreference = config?.dateFormatPreference ?: DateFormatPreference.DEVICE_LOCALE, savedLedgerRange = config?.savedLedgerRange ?: "MONTH", savedLedgerFilter = config?.savedLedgerFilter ?: "ALL", savedLedgerAccountId = config?.savedLedgerAccountId, savedLedgerCategoryName = config?.savedLedgerCategoryName, neurodiverseModeEnabled = config?.neurodiverseModeEnabled ?: false, hourlyRatePaise = config?.hourlyRatePaise ?: 10_000, safeToSpendTodayPaise = FinancialCalculations.safeToSpend(dailyLimit, day.spent), todaySpentPaise = day.spent, holdingTank = day.holding, accountBalances = accountDetailsValue.balances, investmentSnapshots = portfolio.first, investmentHistory = portfolio.second, netWorthHistory = portfolio.third, recentTransactions = day.recent, nirmalamAiReady = NirmalamAiPreferences(app).isReady(), nirmalamAiLoading = _state.value.nirmalamAiLoading, nirmalamAiResponse = _state.value.nirmalamAiResponse)
                     }.catch { error -> emit(MvpFinanceState(message = "Could not read the encrypted database: ${error.message}")) }
                         .collect { _state.value = it }
                 }
@@ -272,18 +273,35 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
      */
     private suspend fun seedReferenceData(opened: NirmalamDatabase) {
         val categories = listOf(
-            "Food & dining" to "food", "Groceries" to "food", "Quick commerce" to "shopping",
-            "Transport & fuel" to "transport", "Travel" to "transport", "Rent & housing" to "bills",
-            "Utilities & mobile" to "bills", "Internet & subscriptions" to "bills", "EMI & insurance" to "bills",
-            "Health & pharmacy" to "health", "Education" to "education", "Shopping" to "shopping",
-            "Home & family" to "gift", "Entertainment" to "gift", "Investments & savings" to "investment",
-            "Salary & wages" to "salary", "Freelance & business" to "freelance", "Interest & dividends" to "investment",
-            "Gifts & transfers" to "gift", "Transfers & banking" to "other", "Refunds & cashback" to "gift", "Taxes & fees" to "bills",
-            "Cash withdrawal" to "other", "Other" to "other"
+            "Food & dining" to Triple("food", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Groceries" to Triple("food", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Quick commerce" to Triple("shopping", CategoryPriority.WANT, CategoryNature.VARIABLE),
+            "Transport & fuel" to Triple("transport", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Travel" to Triple("transport", CategoryPriority.WANT, CategoryNature.VARIABLE),
+            "Rent & housing" to Triple("bills", CategoryPriority.NEED, CategoryNature.FIXED),
+            "Utilities & mobile" to Triple("bills", CategoryPriority.NEED, CategoryNature.FIXED),
+            "Internet & subscriptions" to Triple("bills", CategoryPriority.WANT, CategoryNature.FIXED),
+            "EMI & insurance" to Triple("bills", CategoryPriority.NEED, CategoryNature.FIXED),
+            "Health & pharmacy" to Triple("health", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Education" to Triple("education", CategoryPriority.NEED, CategoryNature.FIXED),
+            "Shopping" to Triple("shopping", CategoryPriority.WANT, CategoryNature.VARIABLE),
+            "Home & family" to Triple("gift", CategoryPriority.WANT, CategoryNature.VARIABLE),
+            "Entertainment" to Triple("gift", CategoryPriority.WANT, CategoryNature.VARIABLE),
+            "Investments & savings" to Triple("investment", CategoryPriority.NEED, CategoryNature.FIXED),
+            "Salary & wages" to Triple("salary", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Freelance & business" to Triple("freelance", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Interest & dividends" to Triple("investment", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Gifts & transfers" to Triple("gift", CategoryPriority.WANT, CategoryNature.VARIABLE),
+            "Transfers & banking" to Triple("other", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Refunds & cashback" to Triple("gift", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Taxes & fees" to Triple("bills", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Cash withdrawal" to Triple("other", CategoryPriority.NEED, CategoryNature.VARIABLE),
+            "Other" to Triple("other", CategoryPriority.WANT, CategoryNature.VARIABLE)
         )
-        categories.forEachIndexed { index, (name, icon) ->
+        categories.forEachIndexed { index, pair ->
+            val (name, meta) = pair
             if (opened.categoryDao().getByName(name) == null) {
-                opened.categoryDao().upsert(CategoryEntity("system-varga-$index", name, TransactionDirection.DEBIT, isSystem = true, iconKey = icon))
+                opened.categoryDao().upsert(CategoryEntity("system-varga-$index", name, TransactionDirection.DEBIT, isSystem = true, iconKey = meta.first, priority = meta.second, nature = meta.third))
             }
         }
 
@@ -521,21 +539,21 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
         }
         _state.update { it.copy(message = "Starter suggestions and demo records were removed. Your own records remain.") }
     }
-    fun saveCategory(name: String, direction: TransactionDirection, iconKey: String) = viewModelScope.launch(Dispatchers.IO) {
+    fun saveCategory(name: String, direction: TransactionDirection, iconKey: String, priority: CategoryPriority, nature: CategoryNature) = viewModelScope.launch(Dispatchers.IO) {
         val clean = name.trim()
         if (clean.isBlank()) { _state.update { it.copy(message = "Enter a category name.") }; return@launch }
         val dao = database?.categoryDao() ?: return@launch
         val current = dao.getByName(clean)
-        dao.upsert(current?.copy(transactionDirection = direction, iconKey = iconKey) ?: CategoryEntity("user-${UUID.randomUUID()}", clean, direction, iconKey = iconKey))
+        dao.upsert(current?.copy(transactionDirection = direction, iconKey = iconKey, priority = priority, nature = nature) ?: CategoryEntity("user-${UUID.randomUUID()}", clean, direction, iconKey = iconKey, priority = priority, nature = nature))
     }
-    fun updateCategory(id: String, name: String, direction: TransactionDirection, iconKey: String) = viewModelScope.launch(Dispatchers.IO) {
+    fun updateCategory(id: String, name: String, direction: TransactionDirection, iconKey: String, priority: CategoryPriority, nature: CategoryNature) = viewModelScope.launch(Dispatchers.IO) {
         val clean = name.trim()
         val opened = database ?: return@launch
         val existing = opened.categoryDao().getById(id) ?: return@launch
         val duplicate = opened.categoryDao().getByName(clean)
         if (clean.isBlank() || (duplicate != null && duplicate.id != id)) { _state.update { it.copy(message = "Choose a unique Varga name.") }; return@launch }
         opened.withTransaction {
-            opened.categoryDao().upsert(existing.copy(name = clean, transactionDirection = direction, iconKey = iconKey))
+            opened.categoryDao().upsert(existing.copy(name = clean, transactionDirection = direction, iconKey = iconKey, priority = priority, nature = nature))
             if (existing.name != clean) {
                 opened.transactionDao().renameCategoryReferences(existing.name, clean)
                 opened.payeeDao().renameDefaultCategory(existing.name, clean)
@@ -689,7 +707,7 @@ private fun UnlockScreen(loading: Boolean, message: String?, onUnlock: (String) 
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, (AccountEntity) -> Unit) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onShowInvestmentPerformance: (Boolean) -> Unit, onExportPerformancePdf: (List<InvestmentPerformanceMetric>) -> Unit, onDismissMessage: () -> Unit) {
+private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, (AccountEntity) -> Unit) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onShowInvestmentPerformance: (Boolean) -> Unit, onExportPerformancePdf: (List<InvestmentPerformanceMetric>) -> Unit, onDismissMessage: () -> Unit) {
     var showAccountSetup by remember { mutableStateOf(false) }
     var accountSetupProduct by remember { mutableStateOf(AccountProductType.CASH) }
     var addKhataMenuExpanded by remember { mutableStateOf(false) }
@@ -1055,7 +1073,7 @@ private enum class NdfFileAction { EXPORT, IMPORT }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onRemoveStarterData: () -> Unit) {
+private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onRemoveStarterData: () -> Unit) {
     var showKhataManagement by remember { mutableStateOf(false) }
     var showVargaManagement by remember { mutableStateOf(false) }
     var showVyaktiManagement by remember { mutableStateOf(false) }
@@ -1310,7 +1328,7 @@ private fun ManagementLinkCard(title: String, subtitle: String, onClick: () -> U
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun VargaManagementScreen(categories: List<CategoryEntity>, onBack: () -> Unit, onSave: (String, TransactionDirection, String) -> Unit, onUpdate: (String, String, TransactionDirection, String) -> Unit, onDelete: (String) -> Unit) {
+private fun VargaManagementScreen(categories: List<CategoryEntity>, onBack: () -> Unit, onSave: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdate: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDelete: (String) -> Unit) {
     var query by remember { mutableStateOf("") }
     var showNew by remember { mutableStateOf(false) }
     var editingId by remember { mutableStateOf<String?>(null) }
@@ -1322,7 +1340,7 @@ private fun VargaManagementScreen(categories: List<CategoryEntity>, onBack: () -
             items(shown.size) { index ->
                 val category = shown[index]
                 ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (editingId == category.id) InlineCategoryEditor(category, onCancel = { editingId = null }, onSave = { name, direction, icon -> onUpdate(category.id, name, direction, icon); editingId = null })
+                    if (editingId == category.id) InlineCategoryEditor(category, onCancel = { editingId = null }, onSave = { name, direction, icon, priority, nature -> onUpdate(category.id, name, direction, icon, priority, nature); editingId = null })
                     else {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             IconifiedCategoryLabel(category.name, category.iconKey)
@@ -1333,7 +1351,7 @@ private fun VargaManagementScreen(categories: List<CategoryEntity>, onBack: () -
             }
         }
     }
-    if (showNew) CategoryEditorDialog(onDismiss = { showNew = false }, onSave = { name, direction, icon -> onSave(name, direction, icon); showNew = false })
+    if (showNew) CategoryEditorDialog(onDismiss = { showNew = false }, onSave = { name, direction, icon, priority, nature -> onSave(name, direction, icon, priority, nature); showNew = false })
 }
 
 @Composable
@@ -1486,14 +1504,26 @@ private fun UserGuideSection(title: String, items: List<String>) {
 }
 
 @Composable
-private fun CategoryEditorDialog(onDismiss: () -> Unit, onSave: (String, TransactionDirection, String) -> Unit) {
-    var name by remember { mutableStateOf("") }; var icon by remember { mutableStateOf("other") }
+private fun CategoryEditorDialog(onDismiss: () -> Unit, onSave: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var icon by remember { mutableStateOf("other") }
+    var priority by remember { mutableStateOf(CategoryPriority.WANT) }
+    var nature by remember { mutableStateOf(CategoryNature.VARIABLE) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("New Varga") }, text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(name, { name = it }, label = { Text("Varga name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
-        Text("Use a Varga for either money in or money out.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Priority", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(priority == CategoryPriority.NEED, { priority = CategoryPriority.NEED }, label = { Text("Need") })
+            FilterChip(priority == CategoryPriority.WANT, { priority = CategoryPriority.WANT }, label = { Text("Want") })
+        }
+        Text("Nature", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(nature == CategoryNature.FIXED, { nature = CategoryNature.FIXED }, label = { Text("Fixed") })
+            FilterChip(nature == CategoryNature.VARIABLE, { nature = CategoryNature.VARIABLE }, label = { Text("Variable") })
+        }
         Text("Choose a glyph", style = MaterialTheme.typography.labelLarge)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(categoryGlyphKeys.size) { index -> val key = categoryGlyphKeys[index]; FilterChip(icon == key, { icon = key }, label = { CategoryGlyph(key, 22.dp) }) } }
-    } }, confirmButton = { Button(onClick = { onSave(name, TransactionDirection.DEBIT, icon) }, enabled = name.isNotBlank()) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+    } }, confirmButton = { Button(onClick = { onSave(name, TransactionDirection.DEBIT, icon, priority, nature) }, enabled = name.isNotBlank()) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
 @Composable
@@ -1506,15 +1536,26 @@ private fun PayeeEditorDialog(categories: List<CategoryEntity>, onDismiss: () ->
 }
 
 @Composable
-private fun InlineCategoryEditor(category: CategoryEntity, onCancel: () -> Unit, onSave: (String, TransactionDirection, String) -> Unit) {
+private fun InlineCategoryEditor(category: CategoryEntity, onCancel: () -> Unit, onSave: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit) {
     var name by remember(category.id) { mutableStateOf(category.name) }
     var icon by remember(category.id) { mutableStateOf(category.iconKey ?: "other") }
+    var priority by remember(category.id) { mutableStateOf(category.priority) }
+    var nature by remember(category.id) { mutableStateOf(category.nature) }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify Varga", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Varga name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
-    Text("Available for both Aaya and Vyaya.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("Priority", style = MaterialTheme.typography.labelLarge)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(priority == CategoryPriority.NEED, { priority = CategoryPriority.NEED }, label = { Text("Need") })
+        FilterChip(priority == CategoryPriority.WANT, { priority = CategoryPriority.WANT }, label = { Text("Want") })
+    }
+    Text("Nature", style = MaterialTheme.typography.labelLarge)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(nature == CategoryNature.FIXED, { nature = CategoryNature.FIXED }, label = { Text("Fixed") })
+        FilterChip(nature == CategoryNature.VARIABLE, { nature = CategoryNature.VARIABLE }, label = { Text("Variable") })
+    }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(categoryGlyphKeys.size) { index -> val key = categoryGlyphKeys[index]; FilterChip(icon == key, { icon = key }, label = { CategoryGlyph(key, 22.dp) }) } }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { Text("Cancel") }; Button(onClick = { onSave(name, category.transactionDirection, icon) }, enabled = name.isNotBlank()) { Text("Save") } }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { Text("Cancel") }; Button(onClick = { onSave(name, category.transactionDirection, icon, priority, nature) }, enabled = name.isNotBlank()) { Text("Save") } }
 }
 
 @Composable
@@ -1844,10 +1885,28 @@ private fun IncomeExpenseReportsScreen(state: MvpFinanceState, onBack: () -> Uni
     val net = income - expense
     val previousNet = previousEntries.filter { it.direction == TransactionDirection.CREDIT }.sumOf { it.amountPaise } -
         previousEntries.filter { it.direction == TransactionDirection.DEBIT }.sumOf { it.amountPaise }
+
+    val liquidAndReserves = state.accountBalances.filter { it.kind == AccountKind.SPENDING || it.kind == AccountKind.SAVINGS || it.kind == AccountKind.EMERGENCY }.sumOf { it.balancePaise }
+    val categoryMetadata = state.categories.associate { it.name to (it.priority to it.nature) }
+    val needsVyaya = entries.filter { it.direction == TransactionDirection.DEBIT && (categoryMetadata[it.category]?.first ?: CategoryPriority.NEED) == CategoryPriority.NEED }.sumOf { it.amountPaise }
+    val wantsVyaya = entries.filter { it.direction == TransactionDirection.DEBIT && (categoryMetadata[it.category]?.first ?: CategoryPriority.NEED) == CategoryPriority.WANT }.sumOf { it.amountPaise }
+
+    val allVyaya = state.recentTransactions.filter { it.direction == TransactionDirection.DEBIT && !it.isHoldingTank }
+    val vyayaByMonth = allVyaya.groupBy { YearMonth.from(Instant.ofEpochMilli(it.occurredAtEpochMs).atZone(ZoneId.systemDefault())) }
+        .mapValues { (_, v) -> v.sumOf { it.amountPaise } }
+    val avgMonthlyVyaya = if (vyayaByMonth.isEmpty()) 0L else vyayaByMonth.values.sum() / vyayaByMonth.size
+    val runwayMonths = if (avgMonthlyVyaya == 0L) null else liquidAndReserves.toDouble() / avgMonthlyVyaya
+
     val categoryTotals = entries.filter { it.direction == TransactionDirection.DEBIT }
         .groupBy { it.category?.ifBlank { null } ?: "Uncategorised" }
         .mapValues { (_, values) -> values.sumOf { it.amountPaise } }
         .entries.sortedByDescending { it.value }
+
+    val hourlyRate = state.hourlyRatePaise
+    val lifeHoursExpenses = categoryTotals.take(3).map { (cat, amount) ->
+        val hours = if (hourlyRate == 0L) 0.0 else amount.toDouble() / hourlyRate
+        cat to hours
+    }
     val payeeTotals = entries.filter { it.direction == TransactionDirection.DEBIT && !it.payee.isNullOrBlank() }
         .groupBy { it.payee!! }
         .mapValues { (_, values) -> values.sumOf { it.amountPaise } }
@@ -1902,6 +1961,41 @@ private fun IncomeExpenseReportsScreen(state: MvpFinanceState, onBack: () -> Uni
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Previous", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(formatMoney(previousNet, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleSmall, color = if (previousNet < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("MINDFUL INSIGHTS", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column {
+                                Text("FINANCIAL RUNWAY", style = MaterialTheme.typography.labelSmall)
+                                Text(runwayMonths?.let { "%.1f months".format(it) } ?: "—", style = MaterialTheme.typography.titleMedium)
+                                Text("Survival on liquid cash", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("SAVINGS RATE", style = MaterialTheme.typography.labelSmall)
+                                val savingsRate = if (income == 0L) null else (income - expense).toDouble() * 100.0 / income
+                                Text(formatPercent(savingsRate), style = MaterialTheme.typography.titleMedium)
+                                Text("Of total Aaya", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
+                        Text("HOURS OF LIFE (Top Expenses)", style = MaterialTheme.typography.labelSmall)
+                        lifeHoursExpenses.forEach { (cat, hours) ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(cat, style = MaterialTheme.typography.bodySmall); Text("%.1f hours".format(hours), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
+                        val totalVyaya = (needsVyaya + wantsVyaya).toDouble()
+                        val needsShare = if (totalVyaya == 0.0) 0.5f else (needsVyaya / totalVyaya).toFloat()
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Essentials (Needs)", style = MaterialTheme.typography.labelSmall); Text("Lifestyle (Wants)", style = MaterialTheme.typography.labelSmall) }
+                            LinearProgressIndicator(progress = { needsShare }, modifier = Modifier.fillMaxWidth())
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(formatMoney(needsVyaya, state.currencyCode), style = MaterialTheme.typography.labelSmall); Text(formatMoney(wantsVyaya, state.currencyCode), style = MaterialTheme.typography.labelSmall) }
                         }
                     }
                 }

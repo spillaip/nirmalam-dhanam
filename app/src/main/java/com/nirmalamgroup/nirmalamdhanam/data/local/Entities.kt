@@ -27,6 +27,8 @@ enum class DateFormatPreference { DEVICE_LOCALE, DD_MMM_YYYY, DD_MM_YYYY, MM_DD_
 enum class AccountKind { SPENDING, CREDIT, SAVINGS, EMERGENCY, INVESTMENT }
 enum class AccountProductType { CASH, BANK, CREDIT_CARD, LOAN, PPF, EPF, NPS, SUPERANNUATION, MUTUAL_FUNDS, EQUITY, STOCKS, BULLION, REAL_ESTATE }
 enum class AssetClass { EQUITY, DEBT, RETIREMENT, CASH, GOLD, BULLION, REAL_ESTATE, OTHER }
+enum class CategoryPriority { NEED, WANT }
+enum class CategoryNature { FIXED, VARIABLE }
 /** How a Nivesha should be compared with its declared benchmark. */
 enum class BenchmarkTrackingMethod { NONE, INDEX_TRACKING, ACTIVE_BENCHMARK, MANUAL }
 
@@ -56,7 +58,9 @@ data class CategoryEntity(
     val transactionDirection: TransactionDirection,
     val isSystem: Boolean = false,
     /** A stable, label-backed glyph key chosen by the user. */
-    val iconKey: String? = null
+    val iconKey: String? = null,
+    val priority: CategoryPriority = CategoryPriority.NEED,
+    val nature: CategoryNature = CategoryNature.VARIABLE
 )
 
 @Entity(tableName = "payees", indices = [Index(value = ["name"], unique = true)])

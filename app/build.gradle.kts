@@ -20,7 +20,7 @@ plugins {
 }
 
 android { namespace = "com.nirmalamgroup.nirmalamdhanam"; compileSdk = 36
-    defaultConfig { applicationId = "com.nirmalamgroup.nirmalamdhanam"; minSdk = 26; targetSdk = 36; versionCode = 14; versionName = "1.4.0" }
+    defaultConfig { applicationId = "com.nirmalamgroup.nirmalamdhanam"; minSdk = 26; targetSdk = 36; versionCode = 15; versionName = "1.5.0" }
     buildFeatures { compose = true; buildConfig = true }
     signingConfigs {
         create("release") {
