@@ -18,10 +18,12 @@ import javax.crypto.KeyGenerator
 import javax.crypto.spec.GCMParameterSpec
 
 enum class NirmalamAiInsight(val title: String, val prompt: String) {
-    SPENDING_FOCUS("Spending focus", "Explain the biggest spending patterns and name one practical, non-judgemental focus for the coming week."),
-    CASH_PLAN("Cash plan", "Assess available cash, current-period income and expenses. Suggest a calm next action; do not provide regulated financial advice."),
-    PORTFOLIO_REVIEW("Portfolio review", "Describe portfolio allocation, gain/loss and XIRR context in plain language. Do not recommend securities, funds, or trades."),
-    MONTHLY_RECAP("Monthly recap", "Write a brief factual monthly recap with wins, changes, and one question for the user to consider.")
+    PORTFOLIO_DRIFT("Check Portfolio Drift", "Evaluate current account balances against target percentages. Calculate exact Rupee rebalancing amounts to align with targets. Identify underweight and overweight assets."),
+    SURPLUS_ROUTER("Surplus Capital Router", "Analyze recent monthly surplus (income minus expenses). Recommend optimal allocation of this fresh cash into underweight asset accounts based on target allocations."),
+    TAX_SHIELD("Review Tax-Shield (80C/NPS)", "Audit headroom under Section 80C (INR 1.5L cap) and Section 80CCD(1B) (INR 50k NPS cap) based on account types like EPF, PPF, NPS, and ELSS. Identify remaining tax-saving potential."),
+    NET_WORTH_QUALITY("Net Worth Health Score", "Assess net worth quality. Calculate liquidity ratio (liquid assets vs. total), solvency ratio, and separate market gains from fresh savings contributions."),
+    EMERGENCY_RUNWAY("Emergency Buffer & Runway", "Measure liquid cash and reserves against average monthly transaction-based burn rate. Project financial survival runway in months."),
+    TOKEN_HEALTH("Token Health Score (0-100)", "Evaluate tokenized assets or real-world assets (RWAs). Provide a 0-100 score based on asset backing, liquidity haircut risk, margin of safety (intrinsic vs market), and regulatory type.")
 }
 
 data class NirmalamAiSettings(val endpoint: String, val model: String, val enabled: Boolean)

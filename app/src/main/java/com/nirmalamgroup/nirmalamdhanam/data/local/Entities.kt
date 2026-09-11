@@ -43,6 +43,10 @@ data class AccountEntity(
     /** Target portfolio weight in basis points; 1% = 100 basis points. */
     val targetAllocationBps: Int = 0,
     val openingBalancePaise: Long = 0,
+    /** Market balance or token pool balance for RWAs. */
+    val currentMarketPaise: Long = 0,
+    /** Fundamental/intrinsic value for token scoring. */
+    val intrinsicValuePaise: Long = 0,
     /** Official AMC/issuer benchmark. This is user-confirmed; names are never treated as authoritative. */
     val benchmarkIndexName: String? = null,
     val benchmarkTrackingMethod: BenchmarkTrackingMethod = BenchmarkTrackingMethod.NONE,

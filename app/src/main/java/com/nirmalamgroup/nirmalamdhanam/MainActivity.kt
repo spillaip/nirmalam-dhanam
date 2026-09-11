@@ -378,6 +378,21 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
             is NdfInterchangeResult.Failure -> _state.update { it.copy(message = result.message) }
         }
     }
+    fun exportTransactionsCsv(destination: Uri) = viewModelScope.launch(Dispatchers.IO) {
+        val opened = database ?: return@launch
+        val transactions = opened.transactionDao().getAll()
+        val accountNames = state.value.accounts.associate { it.id to it.name }
+        if (CsvTransactionExporter(app).exportTo(destination, transactions, accountNames)) {
+            _state.update { it.copy(message = "CSV transaction report exported (${transactions.size} records).") }
+        } else {
+            _state.update { it.copy(message = "CSV export failed.") }
+        }
+    }
+    fun importTransactionsCsv(source: Uri, accountId: String) = viewModelScope.launch(Dispatchers.IO) {
+        val opened = database ?: return@launch
+        val count = CsvTransactionExporter(app).importFrom(source, accountId, opened)
+        _state.update { it.copy(message = if (count > 0) "CSV import successful ($count transactions)." else "CSV import failed or no valid records found.") }
+    }
 
     fun saveInvestmentBalance(accountId: String, asOfDate: String, costText: String, valueText: String, contributionText: String, note: String) = viewModelScope.launch(Dispatchers.IO) {
         val date = runCatching { LocalDate.parse(asOfDate.trim()) }.getOrNull()
@@ -627,7 +642,7 @@ private fun NirmalamMvpApp(viewModel: NirmalamMvpViewModel = viewModel()) {
             if (state.isUnlocked) MvpHome(
                 state,
                 { name, product, assetClass, target, openingBalance, onCreated -> viewModel.createAccount(name, product, assetClass, target, openingBalance, onCreated) },
-                viewModel::updateAccount, viewModel::archiveInvestmentAccount, viewModel::saveInvestmentBalance, viewModel::updateInvestmentBalance, viewModel::contributeToInvestment, viewModel::deleteInvestmentSnapshot, viewModel::deleteTransaction, viewModel::updateTransaction, viewModel::recordTransaction, viewModel::setNeurodiverseMode, viewModel::setCurrency, viewModel::setDateFormatPreference, viewModel::setSavedLedgerView, viewModel::saveNirmalamAi, viewModel::disableNirmalamAi, viewModel::requestNirmalamAiInsight, viewModel::exportInterchangeReport, viewModel::exportNdfBackup, viewModel::importNdfBackup, viewModel::saveCategory, viewModel::updateCategory, viewModel::deleteCategory, viewModel::savePayee, viewModel::updatePayee, viewModel::deletePayee, viewModel::removeStarterData, viewModel::confirmPurchase, viewModel::discardPurchase, viewModel::setShowInvestmentPerformance,
+                viewModel::updateAccount, viewModel::archiveInvestmentAccount, viewModel::saveInvestmentBalance, viewModel::updateInvestmentBalance, viewModel::contributeToInvestment, viewModel::deleteInvestmentSnapshot, viewModel::deleteTransaction, viewModel::updateTransaction, viewModel::recordTransaction, viewModel::setNeurodiverseMode, viewModel::setCurrency, viewModel::setDateFormatPreference, viewModel::setSavedLedgerView, viewModel::saveNirmalamAi, viewModel::disableNirmalamAi, viewModel::requestNirmalamAiInsight, viewModel::exportInterchangeReport, viewModel::exportNdfBackup, viewModel::importNdfBackup, viewModel::saveCategory, viewModel::updateCategory, viewModel::deleteCategory, viewModel::savePayee, viewModel::updatePayee, viewModel::deletePayee, viewModel::exportTransactionsCsv, viewModel::importTransactionsCsv, viewModel::removeStarterData, viewModel::confirmPurchase, viewModel::discardPurchase, viewModel::setShowInvestmentPerformance,
                 { metrics ->
                     pendingMetrics = metrics
                     createPdfFile.launch("nivesha-performance-report.pdf")
@@ -707,7 +722,7 @@ private fun UnlockScreen(loading: Boolean, message: String?, onUnlock: (String) 
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, (AccountEntity) -> Unit) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onShowInvestmentPerformance: (Boolean) -> Unit, onExportPerformancePdf: (List<InvestmentPerformanceMetric>) -> Unit, onDismissMessage: () -> Unit) {
+private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, (AccountEntity) -> Unit) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onExportTransactionsCsv: (Uri) -> Unit, onImportTransactionsCsv: (Uri, String) -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onShowInvestmentPerformance: (Boolean) -> Unit, onExportPerformancePdf: (List<InvestmentPerformanceMetric>) -> Unit, onDismissMessage: () -> Unit) {
     var showAccountSetup by remember { mutableStateOf(false) }
     var accountSetupProduct by remember { mutableStateOf(AccountProductType.CASH) }
     var addKhataMenuExpanded by remember { mutableStateOf(false) }
@@ -722,7 +737,7 @@ private fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPro
     var showSettings by remember { mutableStateOf(false) }
     if (showReports) { IncomeExpenseReportsScreen(state, onBack = { showReports = false }); return }
     if (showTransactions) { TransactionHistoryScreen(state, onBack = { showTransactions = false }, onReports = { showTransactions = false; showReports = true }, onDelete = onDeleteTransaction, onUpdate = onUpdateTransaction, onRecord = onRecordTransaction, onSavedLedgerViewChanged = onSavedLedgerViewChanged); return }
-    if (showSettings) { SettingsScreen(state, onBack = { showSettings = false }, onNeurodiverseModeChanged = onNeurodiverseModeChanged, onCurrencyChanged = onCurrencyChanged, onDateFormatPreferenceChanged = onDateFormatPreferenceChanged, onSaveNirmalamAi = onSaveNirmalamAi, onDisableNirmalamAi = onDisableNirmalamAi, onNirmalamAiInsight = onNirmalamAiInsight, onExportInterchange = onExportInterchange, onExportNdf = onExportNdf, onImportNdf = onImportNdf, onSaveCategory = onSaveCategory, onUpdateCategory = onUpdateCategory, onDeleteCategory = onDeleteCategory, onSavePayee = onSavePayee, onUpdatePayee = onUpdatePayee, onDeletePayee = onDeletePayee, onUpdateAccount = onUpdateAccount, onArchiveAccount = onArchiveAccount, onRemoveStarterData = onRemoveStarterData); return }
+    if (showSettings) { SettingsScreen(state, onBack = { showSettings = false }, onNeurodiverseModeChanged = onNeurodiverseModeChanged, onCurrencyChanged = onCurrencyChanged, onDateFormatPreferenceChanged = onDateFormatPreferenceChanged, onSaveNirmalamAi = onSaveNirmalamAi, onDisableNirmalamAi = onDisableNirmalamAi, onNirmalamAiInsight = onNirmalamAiInsight, onExportInterchange = onExportInterchange, onExportNdf = onExportNdf, onImportNdf = onImportNdf, onSaveCategory = onSaveCategory, onUpdateCategory = onUpdateCategory, onDeleteCategory = onDeleteCategory, onSavePayee = onSavePayee, onUpdatePayee = onUpdatePayee, onDeletePayee = onDeletePayee, onUpdateAccount = onUpdateAccount, onArchiveAccount = onArchiveAccount, onExportTransactionsCsv = onExportTransactionsCsv, onImportTransactionsCsv = onImportTransactionsCsv, onRemoveStarterData = onRemoveStarterData); return }
     if (state.showInvestmentPerformance) { InvestmentPerformanceReportScreen(state, onBack = { onShowInvestmentPerformance(false) }, onExportPdf = { metrics -> onExportPerformancePdf(metrics) }); return }
     if (showNetWorth) { NetWorthDashboardScreen(state, onBack = { showNetWorth = false }, onOpenPortfolio = { showNetWorth = false; showPortfolio = true }); return }
     if (showPortfolio) {
@@ -1073,7 +1088,7 @@ private enum class NdfFileAction { EXPORT, IMPORT }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onRemoveStarterData: () -> Unit) {
+private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String) -> Unit, onArchiveAccount: (String) -> Unit, onExportTransactionsCsv: (Uri) -> Unit, onImportTransactionsCsv: (Uri, String) -> Unit, onRemoveStarterData: () -> Unit) {
     var showKhataManagement by remember { mutableStateOf(false) }
     var showVargaManagement by remember { mutableStateOf(false) }
     var showVyaktiManagement by remember { mutableStateOf(false) }
@@ -1083,6 +1098,10 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
     var showNirmalamAi by remember { mutableStateOf(false) }
     var showRemoveStarterDataConfirmation by remember { mutableStateOf(false) }
     var showJsonExportConfirmation by remember { mutableStateOf(false) }
+    var showCsvImportPicker by remember { mutableStateOf(false) }
+    var selectedImportAccountId by remember { mutableStateOf<String?>(null) }
+    var importAccountExpanded by remember { mutableStateOf(false) }
+
     var currencyExpanded by remember { mutableStateOf(false) }
     var dateFormatExpanded by remember { mutableStateOf(false) }
     var ndfAction by remember { mutableStateOf<NdfFileAction?>(null) }
@@ -1091,6 +1110,14 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
     var importReplacementConfirmed by remember { mutableStateOf(false) }
     var passphraseVisible by remember { mutableStateOf(false) }
     val createInterchangeFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(onExportInterchange) }
+    val createCsvFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri -> uri?.let(onExportTransactionsCsv) }
+    val openCsvFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> 
+        uri?.let { source -> 
+            selectedImportAccountId?.let { accountId ->
+                onImportTransactionsCsv(source, accountId)
+            }
+        }
+    }
     val createNdfFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.nirmalam-dhanam.backup+zip")) { uri ->
         uri?.let { onExportNdf(it, pendingNdfPassphrase) }
         pendingNdfPassphrase = ""
@@ -1168,6 +1195,12 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
                 ElevatedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Data & interoperability", style = MaterialTheme.typography.titleMedium)
+                        Text("CSV Import/Export (DD/MM/YYYY)", style = MaterialTheme.typography.titleSmall)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(onClick = { createCsvFile.launch("nirmalam-dhanam-transactions.csv") }, modifier = Modifier.weight(1f)) { Text("Export CSV") }
+                            OutlinedButton(onClick = { showCsvImportPicker = true }, modifier = Modifier.weight(1f)) { Text("Import CSV") }
+                        }
+                        HorizontalDivider()
                         Text("Export a read-only JSON report for local Python, Java, R, or spreadsheet analysis. This file is plaintext; use encrypted .ndf for backup and restore.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         OutlinedButton(onClick = { showJsonExportConfirmation = true }, modifier = Modifier.fillMaxWidth()) { Text("Export JSON interchange") }
                         HorizontalDivider()
@@ -1196,6 +1229,41 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
             }
             item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Your vocabulary", style = MaterialTheme.typography.titleMedium); Text("Prarambha: home and daily actions\nVyavahara: money activity\nKhata: money place\nNivesha: investments\nSampada: overall wealth\nVinyasa: preferences and data controls", style = MaterialTheme.typography.bodySmall) } } }
         }
+    }
+    if (showCsvImportPicker) {
+        val importableAccounts = state.accounts.filter { it.kind == AccountKind.SPENDING || it.kind == AccountKind.CREDIT }
+        AlertDialog(
+            onDismissRequest = { showCsvImportPicker = false },
+            title = { Text("Import transactions") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Select the Khata where these transactions belong. New Varga and Vyakti will be created automatically.", style = MaterialTheme.typography.bodyMedium)
+                    ExposedDropdownMenuBox(importAccountExpanded, { importAccountExpanded = !importAccountExpanded }) {
+                        OutlinedTextField(
+                            value = importableAccounts.firstOrNull { it.id == selectedImportAccountId }?.name ?: "Select a Khata",
+                            onValueChange = {},
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            readOnly = true,
+                            label = { Text("Target Khata") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(importAccountExpanded) }
+                        )
+                        ExposedDropdownMenu(importAccountExpanded, { importAccountExpanded = false }) {
+                            importableAccounts.forEach { account ->
+                                DropdownMenuItem(text = { Text(account.name) }, onClick = { selectedImportAccountId = account.id; importAccountExpanded = false })
+                            }
+                        }
+                    }
+                    Text("CSV format must be: Date [DD/MM/YYYY], Type [Aaya/Vyaya], Amount, Category, Payee, Account, Notes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showCsvImportPicker = false
+                    openCsvFile.launch(arrayOf("text/csv", "text/comma-separated-values"))
+                }, enabled = selectedImportAccountId != null) { Text("Choose CSV file") }
+            },
+            dismissButton = { TextButton(onClick = { showCsvImportPicker = false }) { Text("Cancel") } }
+        )
     }
     if (showRemoveStarterDataConfirmation) {
         AlertDialog(
@@ -1266,10 +1334,25 @@ private fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodi
 private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave: (String, String, String, Boolean) -> Unit, onDisable: () -> Unit, onInsight: (NirmalamAiInsight) -> Unit) {
     val context = LocalContext.current
     val saved = remember { NirmalamAiPreferences(context).settings() }
-    var endpoint by remember { mutableStateOf(saved.endpoint) }
+    
+    val providers = listOf(
+        Triple("ChatGPT (OpenAI)", "https://api.openai.com/v1", listOf("gpt-4o", "gpt-4o-mini", "gpt-4-turbo")),
+        Triple("Gemini (Google)", "https://generativelanguage.googleapis.com/v1beta/openai/", listOf("gemini-1.5-pro", "gemini-1.5-flash")),
+        Triple("Custom (OpenAI-compatible)", "", emptyList())
+    )
+
+    var selectedProviderIdx by remember { 
+        val idx = providers.indexOfFirst { it.second == saved.endpoint }.coerceAtLeast(0)
+        mutableStateOf(if (saved.endpoint.isBlank()) 0 else idx)
+    }
+    var endpoint by remember { mutableStateOf(if (providers[selectedProviderIdx].second.isEmpty()) saved.endpoint else providers[selectedProviderIdx].second) }
     var model by remember { mutableStateOf(saved.model) }
     var apiKey by remember { mutableStateOf("") }
     var consent by remember { mutableStateOf(false) }
+    
+    var providerExpanded by remember { mutableStateOf(false) }
+    var modelExpanded by remember { mutableStateOf(false) }
+
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = { TopAppBar(title = { Column { Text("Nirmalam AI"); Text("Preset private insights", style = MaterialTheme.typography.labelMedium) } }, navigationIcon = { IconButton(onClick = onBack) { Icon(StandardBackIcon, contentDescription = "Back") } }) }
@@ -1286,8 +1369,42 @@ private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave:
             if (!state.nirmalamAiReady) {
                 item { Text("Bring your own LLM", style = MaterialTheme.typography.titleMedium) }
                 item { Text("Use an OpenAI-compatible HTTPS endpoint. Your API key is encrypted with Android Keystore and is never written to the finance database or export files.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                item { OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), label = { Text("Provider base URL") }, supportingText = { Text("Example: https://api.openai.com/v1") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), singleLine = true) }
-                item { OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text("Model") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
+                
+                item {
+                    ExposedDropdownMenuBox(providerExpanded, { providerExpanded = !providerExpanded }) {
+                        OutlinedTextField(providers[selectedProviderIdx].first, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Provider") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(providerExpanded) })
+                        ExposedDropdownMenu(providerExpanded, { providerExpanded = false }) {
+                            providers.forEachIndexed { index, p ->
+                                DropdownMenuItem(text = { Text(p.first) }, onClick = { 
+                                    selectedProviderIdx = index
+                                    if (p.second.isNotEmpty()) endpoint = p.second
+                                    if (p.third.isNotEmpty()) model = p.third.first()
+                                    providerExpanded = false 
+                                })
+                            }
+                        }
+                    }
+                }
+
+                if (providers[selectedProviderIdx].second.isEmpty()) {
+                    item { OutlinedTextField(endpoint, { endpoint = it }, Modifier.fillMaxWidth(), label = { Text("Provider base URL") }, supportingText = { Text("Example: https://api.openai.com/v1") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), singleLine = true) }
+                }
+
+                item {
+                    if (providers[selectedProviderIdx].third.isNotEmpty()) {
+                        ExposedDropdownMenuBox(modelExpanded, { modelExpanded = !modelExpanded }) {
+                            OutlinedTextField(model, {}, Modifier.menuAnchor().fillMaxWidth(), readOnly = true, label = { Text("Model") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(modelExpanded) })
+                            ExposedDropdownMenu(modelExpanded, { modelExpanded = false }) {
+                                providers[selectedProviderIdx].third.forEach { m ->
+                                    DropdownMenuItem(text = { Text(m) }, onClick = { model = m; modelExpanded = false })
+                                }
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text("Model") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
+                    }
+                }
+
                 item { OutlinedTextField(apiKey, { apiKey = it }, Modifier.fillMaxWidth(), label = { Text("API key") }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1310,7 +1427,12 @@ private fun NirmalamAiScreen(state: MvpFinanceState, onBack: () -> Unit, onSave:
                 }
                 if (state.nirmalamAiLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("Preparing your preset insight…", style = MaterialTheme.typography.bodySmall) }
                 state.nirmalamAiResponse?.let { response -> item { ElevatedCard(Modifier.fillMaxWidth(), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Nirmalam AI reflection", style = MaterialTheme.typography.titleMedium); Text(response, style = MaterialTheme.typography.bodyMedium); Text("Review this as a reflection, not financial advice.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer) } } } }
-                item { OutlinedButton(onClick = onDisable, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Disable Nirmalam AI") } }
+                item { 
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(onClick = onDisable, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)) { Text("Disable AI") }
+                        Button(onClick = { NirmalamAiPreferences(context).clear(); onDisable() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Delete & start over") }
+                    }
+                }
             }
         }
     }
