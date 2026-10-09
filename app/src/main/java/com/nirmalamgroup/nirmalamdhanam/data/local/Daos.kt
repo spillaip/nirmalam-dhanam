@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.Flow
 @Dao interface AccountDao {
     @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY name") fun observeActive(): Flow<List<AccountEntity>>
     @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY name") suspend fun getActive(): List<AccountEntity>
+    @Query("SELECT * FROM accounts ORDER BY name") suspend fun getAll(): List<AccountEntity>
+    @Query("SELECT * FROM accounts WHERE id = :accountId LIMIT 1") suspend fun getById(accountId: String): AccountEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(account: AccountEntity)
     @Query("UPDATE accounts SET isArchived = 1 WHERE id = :accountId") suspend fun archive(accountId: String): Int
     @Query("DELETE FROM accounts WHERE id LIKE 'demo-%'") suspend fun deleteDemoAccounts(): Int
@@ -42,22 +44,37 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(transaction: TransactionEntity)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertAll(transactions: List<TransactionEntity>)
     @Query("SELECT * FROM transactions WHERE id = :transactionId LIMIT 1") suspend fun getById(transactionId: String): TransactionEntity?
-    @Query("SELECT * FROM transactions WHERE isHoldingTank = 1 AND coolDownExpiryEpochMs > :now ORDER BY coolDownExpiryEpochMs") fun observeHoldingTank(now: Long): Flow<List<TransactionEntity>>
+    /** Holding-tank rows remain visible after expiry until the user confirms or discards them. */
+    @Query("SELECT * FROM transactions WHERE isHoldingTank = 1 ORDER BY COALESCE(coolDownExpiryEpochMs, occurredAtEpochMs), occurredAtEpochMs") fun observeHoldingTank(): Flow<List<TransactionEntity>>
     @Query("""SELECT COALESCE(SUM(amountPaise), 0) FROM transactions
-        WHERE direction = 'DEBIT' AND isHoldingTank = 0 AND occurredAtEpochMs >= :dayStart AND occurredAtEpochMs < :dayEnd""")
+        WHERE direction = 'DEBIT' AND isHoldingTank = 0 AND (envelopeType IS NULL OR envelopeType != 'INVESTMENT') AND occurredAtEpochMs >= :dayStart AND occurredAtEpochMs < :dayEnd""")
     fun observeSpentBetween(dayStart: Long, dayEnd: Long): Flow<Long>
     @Query("""SELECT COALESCE(SUM(amountPaise), 0) FROM transactions
-        WHERE direction = 'DEBIT' AND isHoldingTank = 0 AND occurredAtEpochMs >= :start""")
+        WHERE direction = 'DEBIT' AND isHoldingTank = 0 AND (envelopeType IS NULL OR envelopeType != 'INVESTMENT') AND occurredAtEpochMs >= :start""")
     fun observeBurnSince(start: Long): Flow<Long>
     @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY occurredAtEpochMs DESC") fun observeForAccount(accountId: String): Flow<List<TransactionEntity>>
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY occurredAtEpochMs DESC") suspend fun getForAccount(accountId: String): List<TransactionEntity>
+    /** Small dashboard feed only. Reports use observeAll/getBetween instead. */
     @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMs DESC LIMIT :limit") fun observeRecent(limit: Int = 100): Flow<List<TransactionEntity>>
+    @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMs DESC") fun observeAll(): Flow<List<TransactionEntity>>
     @Query("SELECT * FROM transactions ORDER BY occurredAtEpochMs ASC, id ASC") suspend fun getAll(): List<TransactionEntity>
+    @Query("SELECT * FROM transactions WHERE occurredAtEpochMs >= :start AND occurredAtEpochMs < :end ORDER BY occurredAtEpochMs ASC, id ASC") suspend fun getBetween(start: Long, end: Long): List<TransactionEntity>
+    @Query("SELECT * FROM transactions WHERE occurredAtEpochMs >= :since ORDER BY occurredAtEpochMs DESC") suspend fun getSince(since: Long): List<TransactionEntity>
+    @Query("""SELECT * FROM transactions
+        WHERE accountId = :accountId AND amountPaise = :amountPaise AND direction = :direction
+          AND occurredAtEpochMs >= :start AND occurredAtEpochMs < :end
+        ORDER BY occurredAtEpochMs DESC""")
+    suspend fun findPotentialDuplicates(accountId: String, amountPaise: Long, direction: TransactionDirection, start: Long, end: Long): List<TransactionEntity>
     @Query("DELETE FROM transactions WHERE id = :transactionId") suspend fun delete(transactionId: String): Int
     @Query("DELETE FROM transactions WHERE id LIKE 'demo-%'") suspend fun deleteDemoTransactions(): Int
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName") suspend fun renameCategoryReferences(oldName: String, newName: String): Int
     @Query("UPDATE transactions SET payee = :newName, merchant = :newName WHERE payee = :oldName") suspend fun renamePayeeReferences(oldName: String, newName: String): Int
-    @Query("UPDATE transactions SET isHoldingTank = 0, coolDownExpiryEpochMs = NULL WHERE id = :transactionId") suspend fun confirmHoldingTank(transactionId: String): Int
+    @Query("""UPDATE transactions SET isHoldingTank = 0, coolDownExpiryEpochMs = NULL
+        WHERE id = :transactionId AND isHoldingTank = 1
+          AND (coolDownExpiryEpochMs IS NULL OR coolDownExpiryEpochMs <= :nowEpochMs)""")
+    suspend fun confirmHoldingTank(transactionId: String, nowEpochMs: Long): Int
     @Query("DELETE FROM transactions WHERE id = :transactionId AND isHoldingTank = 1") suspend fun discardHoldingTank(transactionId: String): Int
 }
 
@@ -95,11 +112,15 @@ import kotlinx.coroutines.flow.Flow
         INNER JOIN (SELECT accountId, MAX(asOfEpochDay) AS latestDay FROM investment_balance_snapshots GROUP BY accountId) latest
         ON s.accountId = latest.accountId AND s.asOfEpochDay = latest.latestDay""")
     fun observeLatestForAll(): Flow<List<InvestmentBalanceSnapshotEntity>>
-    @Query("SELECT * FROM investment_balance_snapshots ORDER BY asOfEpochDay DESC") fun observeAll(): Flow<List<InvestmentBalanceSnapshotEntity>>
-    @Query("SELECT * FROM investment_balance_snapshots") suspend fun getAll(): List<InvestmentBalanceSnapshotEntity>
+    @Query("SELECT * FROM investment_balance_snapshots ORDER BY asOfEpochDay DESC, createdAtEpochMs DESC") fun observeAll(): Flow<List<InvestmentBalanceSnapshotEntity>>
+    @Query("SELECT * FROM investment_balance_snapshots ORDER BY asOfEpochDay ASC, createdAtEpochMs ASC") suspend fun getAll(): List<InvestmentBalanceSnapshotEntity>
     @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId ORDER BY asOfEpochDay DESC LIMIT 1") suspend fun getLatest(accountId: String): InvestmentBalanceSnapshotEntity?
+    @Query("SELECT * FROM investment_balance_snapshots WHERE id = :snapshotId LIMIT 1") suspend fun getById(snapshotId: String): InvestmentBalanceSnapshotEntity?
+    @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId AND asOfEpochDay < :beforeEpochDay ORDER BY asOfEpochDay DESC LIMIT 1") suspend fun getPrevious(accountId: String, beforeEpochDay: Long): InvestmentBalanceSnapshotEntity?
+    @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId AND asOfEpochDay <= :epochDay ORDER BY asOfEpochDay DESC LIMIT 1") suspend fun getLatestOnOrBefore(accountId: String, epochDay: Long): InvestmentBalanceSnapshotEntity?
     @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId AND asOfEpochDay = :epochDay LIMIT 1") suspend fun getForAccountAndDay(accountId: String, epochDay: Long): InvestmentBalanceSnapshotEntity?
     @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId ORDER BY asOfEpochDay DESC") fun observeForAccount(accountId: String): Flow<List<InvestmentBalanceSnapshotEntity>>
+    @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId ORDER BY asOfEpochDay ASC, createdAtEpochMs ASC") suspend fun getForAccount(accountId: String): List<InvestmentBalanceSnapshotEntity>
     @Query("DELETE FROM investment_balance_snapshots WHERE id = :snapshotId") suspend fun delete(snapshotId: String): Int
     @Query("DELETE FROM investment_balance_snapshots WHERE id LIKE 'demo-%'") suspend fun deleteDemoSnapshots(): Int
 }
@@ -109,4 +130,22 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM net_worth_snapshots ORDER BY asOfEpochDay DESC") fun observeAll(): Flow<List<NetWorthSnapshotEntity>>
     @Query("SELECT * FROM net_worth_snapshots ORDER BY asOfEpochDay ASC") suspend fun getAll(): List<NetWorthSnapshotEntity>
     @Query("DELETE FROM net_worth_snapshots WHERE id LIKE 'demo-%'") suspend fun deleteDemoSnapshots(): Int
+}
+
+@Dao interface GoalDao {
+    @Query("SELECT * FROM goals WHERE isArchived = 0 ORDER BY targetDateEpochDay IS NULL, targetDateEpochDay, name") fun observeActive(): Flow<List<GoalEntity>>
+    @Query("SELECT * FROM goals ORDER BY isArchived, targetDateEpochDay IS NULL, targetDateEpochDay, name") suspend fun getAll(): List<GoalEntity>
+    @Query("SELECT * FROM goals WHERE id = :goalId LIMIT 1") suspend fun getById(goalId: String): GoalEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(goal: GoalEntity)
+    @Query("UPDATE goals SET isArchived = 1 WHERE id = :goalId") suspend fun archive(goalId: String): Int
+    @Query("DELETE FROM goals WHERE id = :goalId") suspend fun delete(goalId: String): Int
+}
+
+@Dao interface GoalAllocationDao {
+    @Query("SELECT * FROM goal_allocations ORDER BY goalId, accountId") fun observeAll(): Flow<List<GoalAllocationEntity>>
+    @Query("SELECT * FROM goal_allocations ORDER BY goalId, accountId") suspend fun getAll(): List<GoalAllocationEntity>
+    @Query("SELECT * FROM goal_allocations WHERE goalId = :goalId ORDER BY accountId") suspend fun getForGoal(goalId: String): List<GoalAllocationEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(allocation: GoalAllocationEntity)
+    @Query("DELETE FROM goal_allocations WHERE id = :id") suspend fun delete(id: String): Int
+    @Query("DELETE FROM goal_allocations WHERE goalId = :goalId") suspend fun deleteForGoal(goalId: String): Int
 }

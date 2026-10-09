@@ -1,0 +1,787 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 14,
+    "identityHash": "f83b972fdbc02be14328b9e12526711f",
+    "entities": [
+      {
+        "tableName": "nirmalam_dhanam_config",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `hourlyRatePaise` INTEGER NOT NULL, `impulseCoolDownThresholdPaise` INTEGER NOT NULL, `neurodiverseModeEnabled` INTEGER NOT NULL DEFAULT 0, `currencyCode` TEXT NOT NULL, `dateFormatPreference` TEXT NOT NULL DEFAULT 'DEVICE_LOCALE', `savedLedgerRange` TEXT NOT NULL DEFAULT 'MONTH', `savedLedgerFilter` TEXT NOT NULL DEFAULT 'ALL', `savedLedgerAccountId` TEXT, `savedLedgerCategoryName` TEXT, `starterDataRemoved` INTEGER NOT NULL DEFAULT 0, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hourlyRatePaise",
+            "columnName": "hourlyRatePaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "impulseCoolDownThresholdPaise",
+            "columnName": "impulseCoolDownThresholdPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "neurodiverseModeEnabled",
+            "columnName": "neurodiverseModeEnabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateFormatPreference",
+            "columnName": "dateFormatPreference",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'DEVICE_LOCALE'"
+          },
+          {
+            "fieldPath": "savedLedgerRange",
+            "columnName": "savedLedgerRange",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'MONTH'"
+          },
+          {
+            "fieldPath": "savedLedgerFilter",
+            "columnName": "savedLedgerFilter",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'ALL'"
+          },
+          {
+            "fieldPath": "savedLedgerAccountId",
+            "columnName": "savedLedgerAccountId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "savedLedgerCategoryName",
+            "columnName": "savedLedgerCategoryName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "starterDataRemoved",
+            "columnName": "starterDataRemoved",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "accounts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `kind` TEXT NOT NULL, `productType` TEXT NOT NULL DEFAULT 'CASH', `assetClass` TEXT NOT NULL DEFAULT 'CASH', `targetAllocationBps` INTEGER NOT NULL DEFAULT 0, `openingBalancePaise` INTEGER NOT NULL, `currentMarketPaise` INTEGER NOT NULL, `intrinsicValuePaise` INTEGER NOT NULL, `benchmarkIndexName` TEXT, `benchmarkTrackingMethod` TEXT NOT NULL DEFAULT 'NONE', `benchmarkIsTotalReturn` INTEGER NOT NULL DEFAULT 1, `isArchived` INTEGER NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "productType",
+            "columnName": "productType",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'CASH'"
+          },
+          {
+            "fieldPath": "assetClass",
+            "columnName": "assetClass",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'CASH'"
+          },
+          {
+            "fieldPath": "targetAllocationBps",
+            "columnName": "targetAllocationBps",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "openingBalancePaise",
+            "columnName": "openingBalancePaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentMarketPaise",
+            "columnName": "currentMarketPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intrinsicValuePaise",
+            "columnName": "intrinsicValuePaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "benchmarkIndexName",
+            "columnName": "benchmarkIndexName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "benchmarkTrackingMethod",
+            "columnName": "benchmarkTrackingMethod",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'NONE'"
+          },
+          {
+            "fieldPath": "benchmarkIsTotalReturn",
+            "columnName": "benchmarkIsTotalReturn",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "isArchived",
+            "columnName": "isArchived",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_accounts_kind",
+            "unique": false,
+            "columnNames": [
+              "kind"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_accounts_kind` ON `${TABLE_NAME}` (`kind`)"
+          }
+        ]
+      },
+      {
+        "tableName": "transactions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `accountId` TEXT NOT NULL, `amountPaise` INTEGER NOT NULL, `direction` TEXT NOT NULL, `merchant` TEXT, `category` TEXT, `payee` TEXT, `description` TEXT, `envelopeType` TEXT, `occurredAtEpochMs` INTEGER NOT NULL, `isHoldingTank` INTEGER NOT NULL, `coolDownExpiryEpochMs` INTEGER, `note` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "amountPaise",
+            "columnName": "amountPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "direction",
+            "columnName": "direction",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "merchant",
+            "columnName": "merchant",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "payee",
+            "columnName": "payee",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "envelopeType",
+            "columnName": "envelopeType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "occurredAtEpochMs",
+            "columnName": "occurredAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isHoldingTank",
+            "columnName": "isHoldingTank",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coolDownExpiryEpochMs",
+            "columnName": "coolDownExpiryEpochMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_transactions_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          },
+          {
+            "name": "index_transactions_occurredAtEpochMs",
+            "unique": false,
+            "columnNames": [
+              "occurredAtEpochMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_occurredAtEpochMs` ON `${TABLE_NAME}` (`occurredAtEpochMs`)"
+          },
+          {
+            "name": "index_transactions_envelopeType",
+            "unique": false,
+            "columnNames": [
+              "envelopeType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_envelopeType` ON `${TABLE_NAME}` (`envelopeType`)"
+          },
+          {
+            "name": "index_transactions_isHoldingTank",
+            "unique": false,
+            "columnNames": [
+              "isHoldingTank"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transactions_isHoldingTank` ON `${TABLE_NAME}` (`isHoldingTank`)"
+          }
+        ]
+      },
+      {
+        "tableName": "budget_envelopes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `dailyLimitPaise` INTEGER NOT NULL, `allocatedPaise` INTEGER NOT NULL, `isActive` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyLimitPaise",
+            "columnName": "dailyLimitPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allocatedPaise",
+            "columnName": "allocatedPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isActive",
+            "columnName": "isActive",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_budget_envelopes_type",
+            "unique": false,
+            "columnNames": [
+              "type"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_budget_envelopes_type` ON `${TABLE_NAME}` (`type`)"
+          }
+        ]
+      },
+      {
+        "tableName": "categories",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `transactionDirection` TEXT NOT NULL, `isSystem` INTEGER NOT NULL, `iconKey` TEXT, `priority` TEXT NOT NULL DEFAULT 'NEED', `nature` TEXT NOT NULL DEFAULT 'VARIABLE', PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "transactionDirection",
+            "columnName": "transactionDirection",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSystem",
+            "columnName": "isSystem",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "iconKey",
+            "columnName": "iconKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "priority",
+            "columnName": "priority",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'NEED'"
+          },
+          {
+            "fieldPath": "nature",
+            "columnName": "nature",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'VARIABLE'"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_categories_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "payees",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `defaultCategory` TEXT, `lastUsedEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultCategory",
+            "columnName": "defaultCategory",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastUsedEpochMs",
+            "columnName": "lastUsedEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_payees_name",
+            "unique": true,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_payees_name` ON `${TABLE_NAME}` (`name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "investment_balance_snapshots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `accountId` TEXT NOT NULL, `asOfEpochDay` INTEGER NOT NULL, `totalCostPaise` INTEGER NOT NULL, `currentValuePaise` INTEGER NOT NULL, `netContributionPaise` INTEGER NOT NULL, `previousCostPaise` INTEGER, `previousValuePaise` INTEGER, `costDeltaPaise` INTEGER NOT NULL DEFAULT 0, `valueDeltaPaise` INTEGER NOT NULL DEFAULT 0, `marketMovementPaise` INTEGER NOT NULL DEFAULT 0, `note` TEXT, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "asOfEpochDay",
+            "columnName": "asOfEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalCostPaise",
+            "columnName": "totalCostPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentValuePaise",
+            "columnName": "currentValuePaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "netContributionPaise",
+            "columnName": "netContributionPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "previousCostPaise",
+            "columnName": "previousCostPaise",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "previousValuePaise",
+            "columnName": "previousValuePaise",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "costDeltaPaise",
+            "columnName": "costDeltaPaise",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "valueDeltaPaise",
+            "columnName": "valueDeltaPaise",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "marketMovementPaise",
+            "columnName": "marketMovementPaise",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_investment_balance_snapshots_accountId_asOfEpochDay",
+            "unique": true,
+            "columnNames": [
+              "accountId",
+              "asOfEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_investment_balance_snapshots_accountId_asOfEpochDay` ON `${TABLE_NAME}` (`accountId`, `asOfEpochDay`)"
+          },
+          {
+            "name": "index_investment_balance_snapshots_asOfEpochDay",
+            "unique": false,
+            "columnNames": [
+              "asOfEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_investment_balance_snapshots_asOfEpochDay` ON `${TABLE_NAME}` (`asOfEpochDay`)"
+          }
+        ]
+      },
+      {
+        "tableName": "net_worth_snapshots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `asOfEpochDay` INTEGER NOT NULL, `netWorthPaise` INTEGER NOT NULL, `portfolioValuePaise` INTEGER NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "asOfEpochDay",
+            "columnName": "asOfEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "netWorthPaise",
+            "columnName": "netWorthPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "portfolioValuePaise",
+            "columnName": "portfolioValuePaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_net_worth_snapshots_asOfEpochDay",
+            "unique": true,
+            "columnNames": [
+              "asOfEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_net_worth_snapshots_asOfEpochDay` ON `${TABLE_NAME}` (`asOfEpochDay`)"
+          }
+        ]
+      },
+      {
+        "tableName": "goals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `targetAmountPaise` INTEGER NOT NULL, `targetDateEpochDay` INTEGER, `note` TEXT, `isArchived` INTEGER NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetAmountPaise",
+            "columnName": "targetAmountPaise",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetDateEpochDay",
+            "columnName": "targetDateEpochDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isArchived",
+            "columnName": "isArchived",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_goals_targetDateEpochDay",
+            "unique": false,
+            "columnNames": [
+              "targetDateEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_goals_targetDateEpochDay` ON `${TABLE_NAME}` (`targetDateEpochDay`)"
+          }
+        ]
+      },
+      {
+        "tableName": "goal_allocations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `goalId` TEXT NOT NULL, `accountId` TEXT NOT NULL, `allocationBps` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "goalId",
+            "columnName": "goalId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allocationBps",
+            "columnName": "allocationBps",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_goal_allocations_goalId_accountId",
+            "unique": true,
+            "columnNames": [
+              "goalId",
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_goal_allocations_goalId_accountId` ON `${TABLE_NAME}` (`goalId`, `accountId`)"
+          },
+          {
+            "name": "index_goal_allocations_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_goal_allocations_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f83b972fdbc02be14328b9e12526711f')"
+    ]
+  }
+}

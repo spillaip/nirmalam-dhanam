@@ -4,27 +4,14 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import com.nirmalamgroup.nirmalamdhanam.data.local.InvestmentBalanceSnapshotEntity
-import com.nirmalamgroup.nirmalamdhanam.data.local.TransactionDirection
-import com.nirmalamgroup.nirmalamdhanam.data.local.TransactionEntity
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.KeyStore
-import java.util.Calendar
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.spec.GCMParameterSpec
-
-enum class NirmalamAiInsight(val title: String, val prompt: String) {
-    PORTFOLIO_DRIFT("Check Portfolio Drift", "Evaluate current account balances against target percentages. Calculate exact Rupee rebalancing amounts to align with targets. Identify underweight and overweight assets."),
-    SURPLUS_ROUTER("Surplus Capital Router", "Analyze recent monthly surplus (income minus expenses). Recommend optimal allocation of this fresh cash into underweight asset accounts based on target allocations."),
-    TAX_SHIELD("Review Tax-Shield (80C/NPS)", "Audit headroom under Section 80C (INR 1.5L cap) and Section 80CCD(1B) (INR 50k NPS cap) based on account types like EPF, PPF, NPS, and ELSS. Identify remaining tax-saving potential."),
-    NET_WORTH_QUALITY("Net Worth Health Score", "Assess net worth quality. Calculate liquidity ratio (liquid assets vs. total), solvency ratio, and separate market gains from fresh savings contributions."),
-    EMERGENCY_RUNWAY("Emergency Buffer & Runway", "Measure liquid cash and reserves against average monthly transaction-based burn rate. Project financial survival runway in months."),
-    TOKEN_HEALTH("Token Health Score (0-100)", "Evaluate tokenized assets or real-world assets (RWAs). Provide a 0-100 score based on asset backing, liquidity haircut risk, margin of safety (intrinsic vs market), and regulatory type.")
-}
 
 data class NirmalamAiSettings(val endpoint: String, val model: String, val enabled: Boolean)
 
@@ -86,22 +73,4 @@ object NirmalamAiClient {
         check(connection.responseCode in 200..299) { "Provider request failed (${connection.responseCode}). ${JSONObject(response).optString("error").ifBlank { "Check the endpoint, model, and key." }}" }
         JSONObject(response).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim().also { check(it.isNotBlank()) { "The provider returned an empty insight." } }
     }
-}
-
-fun buildNirmalamAiSummary(
-    cashPaise: Long,
-    transactions: List<TransactionEntity>,
-    investmentHistory: List<InvestmentBalanceSnapshotEntity>
-): String {
-    val monthStart = Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
-    val month = transactions.filter { it.occurredAtEpochMs >= monthStart && !it.isHoldingTank }
-    val income = month.filter { it.direction == TransactionDirection.CREDIT }.sumOf { it.amountPaise }
-    val expense = month.filter { it.direction == TransactionDirection.DEBIT }.sumOf { it.amountPaise }
-    val categories = month.filter { it.direction == TransactionDirection.DEBIT }.groupBy { it.category?.ifBlank { null } ?: "Uncategorised" }
-        .mapValues { (_, items) -> items.sumOf { it.amountPaise } }.entries.sortedByDescending { it.value }.take(5)
-        .joinToString { "${it.key}: ₹${it.value / 100.0}" }
-    val latest = investmentHistory.groupBy { it.accountId }.values.map { it.maxBy { snapshot -> snapshot.asOfEpochDay } }
-    val portfolioValue = latest.sumOf { it.currentValuePaise }
-    val portfolioCost = latest.sumOf { it.totalCostPaise }
-    return "Currency: INR. Available cash: ₹${cashPaise / 100.0}. This-month income: ₹${income / 100.0}. This-month expense: ₹${expense / 100.0}. Top spending categories: ${categories.ifBlank { "none recorded" }.replace("₹", "INR ")}. Investment holdings: ${latest.size}. Portfolio cost: ₹${portfolioCost / 100.0}. Portfolio value: ₹${portfolioValue / 100.0}. No individual payees, descriptions, raw transactions, or account identifiers were shared."
 }

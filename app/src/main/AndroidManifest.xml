@@ -6,8 +6,8 @@
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:enableOnBackInvokedCallback="true"
-        android:icon="@drawable/nirmalam_launcher_icon_master"
-        android:roundIcon="@drawable/nirmalam_launcher_icon_master"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Nirmalam Dhanam"
         android:theme="@style/Theme.NirmalamDhanam">
         <activity android:name=".MainActivity" android:exported="true">

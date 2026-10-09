@@ -1,5 +1,6 @@
 package com.nirmalamgroup.nirmalamdhanam.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -10,15 +11,15 @@ data class ConfigEntity(
     val hourlyRatePaise: Long,
     val impulseCoolDownThresholdPaise: Long,
     /** Simplifies presentation only; it never changes balances, budgets, or transaction rules. */
-    val neurodiverseModeEnabled: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val neurodiverseModeEnabled: Boolean = false,
     val currencyCode: String = "INR",
-    val dateFormatPreference: DateFormatPreference = DateFormatPreference.DEVICE_LOCALE,
-    val savedLedgerRange: String = "MONTH",
-    val savedLedgerFilter: String = "ALL",
+    @ColumnInfo(defaultValue = "DEVICE_LOCALE") val dateFormatPreference: DateFormatPreference = DateFormatPreference.DEVICE_LOCALE,
+    @ColumnInfo(defaultValue = "MONTH") val savedLedgerRange: String = "MONTH",
+    @ColumnInfo(defaultValue = "ALL") val savedLedgerFilter: String = "ALL",
     val savedLedgerAccountId: String? = null,
     val savedLedgerCategoryName: String? = null,
     /** Stops optional first-run suggestions and demo records from being restored after removal. */
-    val starterDataRemoved: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val starterDataRemoved: Boolean = false,
     val createdAtEpochMs: Long = System.currentTimeMillis()
 )
 
@@ -38,10 +39,10 @@ data class AccountEntity(
     val name: String,
     val kind: AccountKind,
     /** Product grouping drives the cash ledger and portfolio views. */
-    val productType: AccountProductType = AccountProductType.CASH,
-    val assetClass: AssetClass = AssetClass.CASH,
+    @ColumnInfo(defaultValue = "CASH") val productType: AccountProductType = AccountProductType.CASH,
+    @ColumnInfo(defaultValue = "CASH") val assetClass: AssetClass = AssetClass.CASH,
     /** Target portfolio weight in basis points; 1% = 100 basis points. */
-    val targetAllocationBps: Int = 0,
+    @ColumnInfo(defaultValue = "0") val targetAllocationBps: Int = 0,
     val openingBalancePaise: Long = 0,
     /** Market balance or token pool balance for RWAs. */
     val currentMarketPaise: Long = 0,
@@ -49,8 +50,8 @@ data class AccountEntity(
     val intrinsicValuePaise: Long = 0,
     /** Official AMC/issuer benchmark. This is user-confirmed; names are never treated as authoritative. */
     val benchmarkIndexName: String? = null,
-    val benchmarkTrackingMethod: BenchmarkTrackingMethod = BenchmarkTrackingMethod.NONE,
-    val benchmarkIsTotalReturn: Boolean = true,
+    @ColumnInfo(defaultValue = "NONE") val benchmarkTrackingMethod: BenchmarkTrackingMethod = BenchmarkTrackingMethod.NONE,
+    @ColumnInfo(defaultValue = "1") val benchmarkIsTotalReturn: Boolean = true,
     val isArchived: Boolean = false,
     val createdAtEpochMs: Long = System.currentTimeMillis()
 )
@@ -63,8 +64,8 @@ data class CategoryEntity(
     val isSystem: Boolean = false,
     /** A stable, label-backed glyph key chosen by the user. */
     val iconKey: String? = null,
-    val priority: CategoryPriority = CategoryPriority.NEED,
-    val nature: CategoryNature = CategoryNature.VARIABLE
+    @ColumnInfo(defaultValue = "NEED") val priority: CategoryPriority = CategoryPriority.NEED,
+    @ColumnInfo(defaultValue = "VARIABLE") val nature: CategoryNature = CategoryNature.VARIABLE
 )
 
 @Entity(tableName = "payees", indices = [Index(value = ["name"], unique = true)])
@@ -86,11 +87,25 @@ data class InvestmentBalanceSnapshotEntity(
     val totalCostPaise: Long,
     /** Statement balance or market value as of [asOfEpochDay]. */
     val currentValuePaise: Long,
-    /** Net money added (positive) or withdrawn (negative) since the prior check-in. */
+    /** Derived from the cost change versus the previous check-in; positive = contribution, negative = withdrawal. */
     val netContributionPaise: Long = 0,
+    /** Previous check-in values are stored so file exports remain independently auditable. */
+    val previousCostPaise: Long? = null,
+    val previousValuePaise: Long? = null,
+    /** Difference versus the prior check-in. */
+    @ColumnInfo(defaultValue = "0") val costDeltaPaise: Long = 0,
+    @ColumnInfo(defaultValue = "0") val valueDeltaPaise: Long = 0,
+    /**
+     * Best available movement after external-flow adjustment. Exact when no redemption is
+     * inferred; for balance-only withdrawals it is a cost-basis-flow estimate. Richer
+     * determinability metadata is derived by InvestmentDeltaEngine rather than duplicated here.
+     */
+    @ColumnInfo(defaultValue = "0") val marketMovementPaise: Long = 0,
     val note: String? = null,
     val createdAtEpochMs: Long = System.currentTimeMillis()
-)
+) {
+    val unrealizedGainPaise: Long get() = currentValuePaise - totalCostPaise
+}
 
 data class AccountBalance(
     val accountId: String,
@@ -112,7 +127,7 @@ data class NetWorthSnapshotEntity(
 enum class TransactionDirection { DEBIT, CREDIT }
 enum class EnvelopeType { NEEDS, WANTS, SAVINGS, INVESTMENT }
 
-@Entity(tableName = "transactions", indices = [Index("accountId"), Index("occurredAtEpochMs"), Index("envelopeType"), Index("isHoldingTank")])
+@Entity(tableName = "transactions", indices = [Index("accountId"), Index("occurredAtEpochMs"), Index("envelopeType"), Index("isHoldingTank"), Index("sourceFingerprint")])
 data class TransactionEntity(
     @PrimaryKey val id: String,
     val accountId: String,
@@ -129,7 +144,13 @@ data class TransactionEntity(
     val occurredAtEpochMs: Long = System.currentTimeMillis(),
     val isHoldingTank: Boolean = false,
     val coolDownExpiryEpochMs: Long? = null,
-    val note: String? = null
+    val note: String? = null,
+    /** Stable provenance fingerprint for imported records; null for ordinary manual entries. */
+    val sourceFingerprint: String? = null,
+    /** Local import channel such as CSV or DHANAM. Never contains account credentials or raw source text. */
+    val sourceKind: String? = null,
+    /** Set only after an imported record has been explicitly committed/reconciled into the ledger. */
+    val reconciledAtEpochMs: Long? = null
 )
 
 @Entity(tableName = "budget_envelopes", indices = [Index("type")])
@@ -140,6 +161,27 @@ data class EnvelopeEntity(
     val dailyLimitPaise: Long,
     val allocatedPaise: Long = 0,
     val isActive: Boolean = true
+)
+
+/** User-defined financial objective. Funding is linked to existing accounts/assets, never duplicated. */
+@Entity(tableName = "goals", indices = [Index("targetDateEpochDay")])
+data class GoalEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val targetAmountPaise: Long,
+    val targetDateEpochDay: Long? = null,
+    val note: String? = null,
+    val isArchived: Boolean = false,
+    val createdAtEpochMs: Long = System.currentTimeMillis()
+)
+
+/** Percentage of an account/asset that contributes to a goal. 10,000 bps = 100%. */
+@Entity(tableName = "goal_allocations", indices = [Index(value = ["goalId", "accountId"], unique = true), Index("accountId")])
+data class GoalAllocationEntity(
+    @PrimaryKey val id: String,
+    val goalId: String,
+    val accountId: String,
+    val allocationBps: Int = 10_000
 )
 
 data class CashPosition(val spendingPaise: Long, val creditLiabilityPaise: Long) {

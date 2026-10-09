@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sampled from the Nirmalam Play Store artwork; used as the adaptive-icon background layer. -->
+    <color name="ic_launcher_background">#F8FDF6</color>
+</resources>

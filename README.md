@@ -1,92 +1,76 @@
-# Nirmalam Dhanam (निर्मलम् धनम्)
+# Nirmalam Dhanam
 
-Nirmalam Dhanam is a local-first, privacy-centred personal finance app for Android. It combines encrypted on-device records, thoughtful spending controls, and a calmer financial view designed to support long-term decision-making.
+Nirmalam Dhanam is a local-first Android personal-finance app built around two simple ideas:
 
-## What you can do
+- **Income and expenses are transactions.** Transactions can be imported/exported and reconciled.
+- **Investments are assets with balance check-ins.** The user enters current cost and current value; Dhanam derives contributions/withdrawals, value change, and market movement from the prior check-in.
 
-- Unlock a local SQLCipher Room database with a PBKDF2-derived passphrase key.
-- Track cash and bank activity with a Vyakti (payee), direction-neutral Varga (category), and optional private description.
-- Set up cash, bank, credit, loan, retirement, and investment Khatas: PPF, EPF, NPS, superannuation, mutual funds/ETFs, direct stocks, and bullion.
-- Start with optional India-oriented Varga and Vyakti suggestions for everyday merchants, banks, LPG/gas, electricity providers, telecom, travel, and common income sources.
-- Check in dated investment cost and value balances for portfolio and net-worth tracking.
-- Use **Prarambha** for true available cash, safe-to-spend today, cooling-tank decisions, local balance and portfolio charts, a seven-day Money Pulse chart, and a compact portfolio summary.
-- Use **Vyavahara** for searchable money activity, account/category filters, inline modifications, reports, and a local-only Spend Map.
-- Use **Nivesha** for investment asset CRUD, dated monthly cost/value check-ins, cost-vs-value charts, ABS/XIRR performance context, and locally suggested tracking benchmarks for recognised index funds, ETFs, equities, and gold holdings.
-- Use **Sampada** for a live net-worth dashboard with assets, liabilities, allocation, and trend.
-- Use **Vinyasa** for neurodiverse mode, currency, date format, privacy guidance, Varga, Vyakti, and About management.
-- Optionally enable **Nirmalam AI** in Vinyasa with your own OpenAI-compatible provider, model, and API key. It offers only fixed insight buttons—not chat—and sends a minimised aggregate summary only after you press one.
-- Pause wants purchases in a 48-hour cooling tank, with haptic confirmation actions.
-- Export and restore encrypted `.ndf` backups from Vinyasa. An `.ndf` is a compressed container of the SQLCipher database and non-sensitive format metadata; the database passphrase is verified before export and required again for restore.
-- Produce a versioned, read-only JSON interchange report for local Python/Java analysis; values use integer paise to avoid precision loss.
-- Use the bundled Python API toolkit for local validation, filtering, summary generation, and `.ndf` manifest inspection from exported files.
+The app keeps its live database encrypted with Room + SQLCipher. A portable, versioned **`.dhanam`** JSON document is the user-owned interchange format shared with the companion Python package. Encrypted **`.ndf`** files remain the full backup/restore format.
 
-## Screen map
+## Android Studio setup
 
-| Screen | Purpose |
-| --- | --- |
-| Prarambha | Available cash, daily decision metrics, a seven-day Money Pulse chart, cooling-tank decisions, and portfolio summary. |
-| Vyavahara | Searchable income/expense history, filters, reports, and transaction entry. |
-| Nivesha | Investment asset management, monthly balances, allocation, and performance history. |
-| Sampada | Net worth: current assets, liabilities, allocation, and trend. |
-| Vinyasa | Preferences, Varga/Vyakti setup, currency, guide, and privacy disclosure. |
+Requirements:
 
-## Technology
+- JDK 17
+- Android Studio with Android SDK 36
+- Android Gradle Plugin 9.4.1
+- Gradle 9.7.1
 
-Kotlin, Coroutines, StateFlow, KotlinX Serialization, Jetpack Compose Material 3, Room, SQLCipher, and the Android Storage Access Framework.
+Open the repository root in Android Studio (the directory containing `settings.gradle.kts`), allow Gradle Sync to finish, and run the `app` configuration.
 
-## Project status
+Command-line debug build:
 
-Nirmalam Dhanam is now published on Google Play. This repository contains the production app baseline plus continuing post-launch work for local encrypted finance tracking, income/expense reports, investment and net-worth dashboards, portfolio and balance charts, encrypted backup/restore controls, optional BYOL Nirmalam AI insights, and Material 3 screens. The Room schema is currently version 12. The public manifest targets Android API 36 and does not declare restricted SMS permissions. The app supports a device-locale default date format with explicit override options from Vinyasa.
-
-## Local build
-
-1. Install JDK 17 and set `JAVA_HOME`.
-2. Install Android SDK Platform 36 through Android Studio.
-3. Run:
-
-   ```powershell
-   .\gradlew.bat :app:assembleDebug
-   ```
-
-## Security notes
-
-The user's passphrase must be collected only after device authentication and supplied directly to the database unlock/backup operation. Do not log passphrases, transaction data, or raw SMS content. `.ndf` files remain encrypted, but should still be stored only in locations the user trusts. Nirmalam AI is disabled by default; its BYOL key is protected with Android Keystore and is never included in Room, JSON exports, or `.ndf` backups. Enabling it sends an aggregate summary to the provider the user chooses only when a fixed insight button is pressed.
-
-Benchmark suggestions are local metadata only: recognised holding names can be associated with an appropriate Indian market index (or a domestic gold benchmark), but the app does not fetch prices or transmit portfolio data. Confirm the scheme's official benchmark from its AMC or issuer before relying on a comparison.
-
-See [NDF_SPEC.md](NDF_SPEC.md) for the encrypted backup and JSON interchange contracts.
-
-## Python data API
-
-The repository includes a local Python toolkit under [python-api](python-api) for working with exported data files.
-
-- Loads and validates `nirmalam-dhanam-interchange` JSON exports.
-- Filters Vyavahara records by Khata, Varga, Vyakti, direction, holding-tank status, and time range.
-- Produces local summaries for cashflow, category/payee/account totals, portfolio value, and latest net worth.
-- Reads `.ndf` manifest metadata safely without decrypting or modifying the encrypted SQLCipher payload.
-- Ships as a PyPI-ready package with typed models, a CLI entry point, changelog, and publish metadata.
-
-Example:
-
-```powershell
-cd .\python-api
-python -m unittest
-python -m nirmalam_dhanam_api summary ..\sample.json
+```bash
+./gradlew :app:assembleDebug
 ```
 
-## Release verification
+On Windows:
 
-[RELEASE_DATA_SAFETY_TEST.md](RELEASE_DATA_SAFETY_TEST.md) covers the required real-database regression check for removing starter data, backup passphrase recovery, and empty-state checks. Run it against a copy of a real pre-release database; do not use a customer's only database as a test fixture.
+```powershell
+.\gradlew.bat :app:assembleDebug
+```
 
-[QA_MATRIX.md](QA_MATRIX.md) is the required API 26/29/33/35/36, accessibility, rotation, tablet, neurodiverse-mode, and large-dataset release matrix.
+> The source bundle used for this repair did not contain the standard Gradle wrapper JAR/scripts. The included bootstrap scripts use a normal wrapper JAR if one is later generated, otherwise they bootstrap Gradle 9.7.1. In Android Studio, generate/commit the standard wrapper once Gradle is available (`gradle wrapper --gradle-version 9.7.1`).
 
-## Release administration
+## Primary navigation
 
-- [Privacy policy](https://www.nirmalamgroup.in/home/privacypolicy) — public HTTPS URL linked from Vinyasa for the Play listing and in-app disclosure. The repository also keeps the current source copy at [docs/privacy-policy.html](docs/privacy-policy.html).
-- [Play Console submission checklist](PLAY_CONSOLE_SUBMISSION.md) — Data safety, app-content, and content-rating preparation.
-- Upload signing is configured locally with a 4,096-bit RSA key at `release-signing/nirmalam-upload-key.jks` and ignored `keystore.properties`. Back up both into a password manager or encrypted vault; never commit either file. Enable Play App Signing when uploading the first AAB.
+The UI is intentionally reduced to five destinations:
 
-## Post-launch notes
+1. **Home** — what changed, cash position, quick actions
+2. **Transactions** — ledger, import/export, reconciliation
+3. **Investments** — assets, cost/value check-ins, performance
+4. **Insights** — health, explainable insights, goals, time machine, local copilot, timeline
+5. **More** — settings, portable files, encrypted backup/restore, advanced options
 
-- Privacy policy hosting is now served from `nirmalamgroup.in`; GitHub Pages deployment is no longer used for the public policy URL.
-- Keep Play Store listing assets, reviewer notes, and in-app support/privacy details aligned with the live production app.
+## Portable `.dhanam` files
+
+`.dhanam` is plaintext JSON designed for portability and automation. Money is stored as integer paise; dates use epoch milliseconds or epoch days. Do not use `.dhanam` when encryption-at-rest is required; use `.ndf` for encrypted backups.
+
+See [`docs/DHANAM_FILE_FORMAT.md`](docs/DHANAM_FILE_FORMAT.md).
+
+## Python package
+
+The publishable package source is under `python/`.
+
+Development test:
+
+```bash
+PYTHONPATH=python/src python -m unittest discover -s python/tests -v
+```
+
+Once build tooling and PyPI credentials are configured:
+
+```bash
+cd python
+python -m build
+python -m twine check dist/*
+python -m twine upload dist/*
+```
+
+The package is intentionally not assigned an open-source license in its metadata until the repository owner explicitly chooses and adds a repository license.
+
+## Data safety
+
+Before testing migrations against valuable data, create an encrypted `.ndf` backup. Database schema is now version 14 and includes explicit migration/default handling for older installs.
+
+See [`docs/IMPLEMENTATION_REPORT.md`](docs/IMPLEMENTATION_REPORT.md) for the repair and feature map.

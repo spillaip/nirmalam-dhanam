@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface FinanceRepository {
     fun observeCashPosition(): Flow<CashPosition>
-    fun observeHoldingTank(now: Long): Flow<List<TransactionEntity>>
+    fun observeHoldingTank(): Flow<List<TransactionEntity>>
     fun observeSafeToSpend(envelopeId: String, dayStart: Long, dayEnd: Long): Flow<Long?>
     suspend fun saveTransaction(transaction: TransactionEntity, coolDownThresholdPaise: Long)
 }

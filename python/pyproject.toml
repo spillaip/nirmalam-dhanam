@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nirmalam-dhanam"
+version = "0.1.0"
+description = "CRUD and analytics for portable Nirmalam Dhanam .dhanam personal-finance files"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "Nirmalam Group"}]
+keywords = ["personal-finance", "ledger", "investments", "dhanam", "local-first"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Office/Business :: Financial"
+]
+
+[project.scripts]
+dhanam = "nirmalam_dhanam.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/spillaip/nirmalam-dhanam"
+Repository = "https://github.com/spillaip/nirmalam-dhanam"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

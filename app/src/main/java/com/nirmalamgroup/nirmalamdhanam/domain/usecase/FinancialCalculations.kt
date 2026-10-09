@@ -68,14 +68,94 @@ data class InvestmentPerformanceMetric(
 )
 
 object MoneyFormatter {
-    fun format(paise: Long, currencyCode: String = "INR", includeSign: Boolean = false): String {
-        val sign = if (includeSign && paise > 0) "+" else ""
-        val locale = if (currencyCode == "INR") Locale.forLanguageTag("en-IN") else Locale.getDefault()
-        val amount = NumberFormat.getCurrencyInstance(locale).apply {
-            currency = Currency.getInstance(currencyCode)
-            minimumFractionDigits = 2
-            maximumFractionDigits = 2
-        }.format(paise / 100.0)
+
+    fun format(
+        paise: Long,
+        currencyCode: String = "INR",
+        includeSign: Boolean = false
+    ): String {
+        if (currencyCode == "INR") {
+            return formatIndianRupees(
+                paise = paise,
+                includeSign = includeSign
+            )
+        }
+
+        val sign =
+            if (includeSign && paise > 0) "+" else ""
+
+        val amount = NumberFormat
+            .getCurrencyInstance(Locale.getDefault())
+            .apply {
+                currency = Currency.getInstance(currencyCode)
+                minimumFractionDigits = 2
+                maximumFractionDigits = 2
+            }
+            .format(paise / 100.0)
+
         return "$sign$amount"
+    }
+
+    private fun formatIndianRupees(
+        paise: Long,
+        includeSign: Boolean
+    ): String {
+        val value = java.math.BigInteger
+            .valueOf(paise)
+            .abs()
+
+        val hundred = java.math.BigInteger.valueOf(100L)
+
+        val rupees = value
+            .divide(hundred)
+            .toString()
+
+        val fraction = value
+            .remainder(hundred)
+            .toInt()
+            .toString()
+            .padStart(2, '0')
+
+        val groupedRupees = indianGrouping(rupees)
+
+        val sign = when {
+            paise < 0 -> "-"
+            includeSign && paise > 0 -> "+"
+            else -> ""
+        }
+
+        return "$sign₹$groupedRupees.$fraction"
+    }
+
+    private fun indianGrouping(
+        digits: String
+    ): String {
+        if (digits.length <= 3) {
+            return digits
+        }
+
+        val lastThree = digits.takeLast(3)
+        val prefix = digits.dropLast(3)
+
+        val groups = mutableListOf<String>()
+
+        var end = prefix.length
+
+        while (end > 0) {
+            val start = (end - 2).coerceAtLeast(0)
+
+            groups += prefix.substring(
+                startIndex = start,
+                endIndex = end
+            )
+
+            end = start
+        }
+
+        return groups
+            .asReversed()
+            .joinToString(",") +
+                "," +
+                lastThree
     }
 }

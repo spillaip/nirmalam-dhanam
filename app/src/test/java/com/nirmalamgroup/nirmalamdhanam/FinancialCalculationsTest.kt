@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.nirmalamgroup.nirmalamdhanam.data.local.CategoryPriority
 
 class FinancialCalculationsTest {
     @Test fun moneyFormatting_usesIndianGroupingAndOptionalSign() {
@@ -28,13 +29,42 @@ class FinancialCalculationsTest {
         assertEquals(0, FinancialCalculations.safeToSpend(50_000, 60_000))
     }
 
-    @Test fun coolingTank_holdsOnlyWantsAboveThresholdFor48Hours() {
+    @Test
+    fun coolingTank_holdsOnlyWantsAboveThresholdFor48Hours() {
         val now = 1_000_000L
-        val wants = TransactionEntity("want", "cash", 50_001, TransactionDirection.DEBIT, envelopeType = EnvelopeType.WANTS)
-        val held = CoolDownTankInterceptorUseCase { now }(wants, 50_000)
-        assertEquals(now + 48L * 60 * 60 * 1_000, held.coolDownExpiryEpochMs)
-        val need = wants.copy(envelopeType = EnvelopeType.NEEDS)
-        val immediate = CoolDownTankInterceptorUseCase { now }(need, 50_000)
+
+        val interceptor =
+            CoolDownTankInterceptorUseCase { now }
+
+        val wants = TransactionEntity(
+            id = "want",
+            accountId = "cash",
+            amountPaise = 50_001,
+            direction = TransactionDirection.DEBIT,
+            envelopeType = EnvelopeType.WANTS
+        )
+
+        val held = interceptor(
+            draft = wants,
+            thresholdPaise = 50_000,
+            categoryPriority = CategoryPriority.WANT
+        )
+
+        assertEquals(
+            now + 48L * 60 * 60 * 1_000,
+            held.coolDownExpiryEpochMs
+        )
+
+        val need = wants.copy(
+            envelopeType = EnvelopeType.NEEDS
+        )
+
+        val immediate = interceptor(
+            draft = need,
+            thresholdPaise = 50_000,
+            categoryPriority = CategoryPriority.NEED
+        )
+
         assertFalse(immediate.isHoldingTank)
         assertNull(immediate.coolDownExpiryEpochMs)
     }

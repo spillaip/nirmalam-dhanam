@@ -38,7 +38,7 @@ data class NdfManifest(
     val kdfSaltBase64: String,
     /** SHA-256 of the encrypted database payload; required by NDF v2. */
     val databaseSha256: String? = null,
-    /** Informational Room schema version for external tools; never used to bypass validation. */
+    /** Room schema version recorded at export and required to match the encrypted payload on import. */
     val databaseSchemaVersion: Int? = null
 ) {
     companion object { const val DATABASE_ENTRY = "database.sqlcipher"; const val MANIFEST_ENTRY = "manifest.json" }
@@ -76,6 +76,37 @@ object NdfBackupIntegrity {
 }
 
 /**
+ * Opens an encrypted backup only when its SQLite user_version already matches the expected
+ * Room schema. Validation must never mutate a backup merely to make it look compatible.
+ *
+ * In particular, a mismatched manifest must not trigger SQLiteOpenHelper's normal version bump
+ * after a no-op onUpgrade/onDowngrade callback; throwing keeps the staging database unchanged.
+ */
+internal class NdfDatabaseValidationCallback(
+    expectedSchemaVersion: Int
+) : SupportSQLiteOpenHelper.Callback(expectedSchemaVersion) {
+    override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        error("Backup database is empty; expected an existing Room database.")
+    }
+
+    override fun onUpgrade(
+        db: androidx.sqlite.db.SupportSQLiteDatabase,
+        oldVersion: Int,
+        newVersion: Int
+    ) {
+        error("Backup schema version mismatch: database is $oldVersion but manifest expects $newVersion.")
+    }
+
+    override fun onDowngrade(
+        db: androidx.sqlite.db.SupportSQLiteDatabase,
+        oldVersion: Int,
+        newVersion: Int
+    ) {
+        error("Backup schema version mismatch: database is $oldVersion but manifest expects $newVersion.")
+    }
+}
+
+/**
  * `.ndf` is a ZIP container. Its payload remains SQLCipher-encrypted; compression is only
  * packaging and must not be treated as encryption. A backup can be imported on another device
  * when the user supplies the same passphrase.
@@ -96,7 +127,7 @@ class NdfBackupManager(
                 // Ensure the supplied passphrase can open this database. Without this check, a
                 // mistyped export passphrase would create a backup that cannot later be restored.
                 val verificationFailure = runCatching {
-                    validateEncryptedDatabase(source, passphrase.copyOf(), keyManager.salt)
+                    validateEncryptedDatabase(source, passphrase.copyOf(), keyManager.salt, NirmalamDatabase.SCHEMA_VERSION)
                 }.exceptionOrNull()
                 if (verificationFailure != null) {
                     passphrase.fill('\u0000')
@@ -111,7 +142,7 @@ class NdfBackupManager(
                     exportedAtEpochMs = System.currentTimeMillis(),
                     kdfSaltBase64 = Base64.encodeToString(keyManager.salt, Base64.NO_WRAP),
                     databaseSha256 = source.sha256Hex(),
-                    databaseSchemaVersion = 12
+                    databaseSchemaVersion = NirmalamDatabase.SCHEMA_VERSION
                 )
                 context.contentResolver.openOutputStream(destination, "wt")?.use { output ->
                     ZipOutputStream(BufferedOutputStream(output)).use { zip ->
@@ -142,7 +173,7 @@ class NdfBackupManager(
                 manifest.databaseSha256?.let { expected -> require(NdfBackupIntegrity.matchesExpected(staging, expected)) { "Backup integrity check failed." } }
                 val importedSalt = Base64.decode(manifest.kdfSaltBase64, Base64.NO_WRAP)
                 val verificationFailure = runCatching {
-                    validateEncryptedDatabase(staging, passphrase, importedSalt)
+                    validateEncryptedDatabase(staging, passphrase, importedSalt, requireNotNull(manifest.databaseSchemaVersion) { "Backup schema version is missing." })
                 }.exceptionOrNull()
                 if (verificationFailure != null) {
                     staging.delete()
@@ -194,28 +225,47 @@ class NdfBackupManager(
 
     private fun validateManifest(manifest: NdfManifest) {
         require(manifest.format == "nirmalam-dhanam-backup" && manifest.formatVersion in 1..2) { "Unsupported .ndf backup format." }
+        require(manifest.databaseSchemaVersion != null && manifest.databaseSchemaVersion in 1..NirmalamDatabase.SCHEMA_VERSION) { "Backup schema version is missing or newer than this app." }
         require(manifest.databaseFile == NdfManifest.DATABASE_ENTRY && manifest.kdf == "PBKDF2WithHmacSHA256" && manifest.kdfIterations == 210_000) { "Invalid .ndf encryption metadata." }
         require(Base64.decode(manifest.kdfSaltBase64, Base64.NO_WRAP).size >= 16) { "Invalid .ndf key salt." }
         if (manifest.formatVersion >= 2) require(manifest.databaseSha256?.matches(Regex("[0-9a-fA-F]{64}")) == true) { "NDF v2 requires a SHA-256 payload digest." }
     }
 
-    private fun validateEncryptedDatabase(file: File, passphrase: CharArray, salt: ByteArray) {
+    private fun validateEncryptedDatabase(
+        file: File,
+        passphrase: CharArray,
+        salt: ByteArray,
+        expectedSchemaVersion: Int
+    ) {
+        require(expectedSchemaVersion in 1..NirmalamDatabase.SCHEMA_VERSION) {
+            "Unsupported database schema version $expectedSchemaVersion."
+        }
         val key = DatabaseKeyDeriver.derive(passphrase, salt)
         try {
             val helper = SupportOpenHelperFactory(key).create(
                 SupportSQLiteOpenHelper.Configuration.builder(context)
                     .name(file.absolutePath)
-                    .callback(object : SupportSQLiteOpenHelper.Callback(2) {
-                        override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) = Unit
-                        override fun onUpgrade(db: androidx.sqlite.db.SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
-                    })
+                    .callback(NdfDatabaseValidationCallback(expectedSchemaVersion))
                     .build()
             )
             try {
-                val cursor = helper.writableDatabase.query("SELECT count(*) FROM sqlite_master")
-                try { require(cursor.moveToFirst()) { "Encrypted database could not be read." } } finally { cursor.close() }
-            } finally { helper.close() }
-        } finally { key.fill(0) }
+                val db = helper.writableDatabase
+                db.query("SELECT count(*) FROM sqlite_master").use { cursor ->
+                    require(cursor.moveToFirst()) { "Encrypted database could not be read." }
+                }
+                db.query("PRAGMA user_version").use { cursor ->
+                    require(cursor.moveToFirst()) { "Database schema version could not be read." }
+                    val actualSchemaVersion = cursor.getInt(0)
+                    require(actualSchemaVersion == expectedSchemaVersion) {
+                        "Backup schema version mismatch: manifest expects $expectedSchemaVersion but database is $actualSchemaVersion."
+                    }
+                }
+            } finally {
+                helper.close()
+            }
+        } finally {
+            key.fill(0)
+        }
     }
 
     private fun replaceDatabaseAtomically(staging: File, importedSalt: ByteArray) {
