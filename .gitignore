@@ -16,3 +16,7 @@ python/*.egg-info/
 __pycache__/
 *.pyc
 .DS_Store
+# Generated release/build artifacts
+app/release/
+app/src/*.zip
+*.aab
