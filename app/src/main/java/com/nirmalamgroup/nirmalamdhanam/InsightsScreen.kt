@@ -554,6 +554,30 @@ private fun healthTrendLabel(trend: HealthTrend): String = when (trend) {
     HealthTrend.UNKNOWN -> "Trend unavailable"
 }
 
+private enum class InsightsSection(val label: String) {
+    OVERVIEW("Overview"),
+    PLAN("Plan"),
+    EXPLORE("Explore"),
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun InsightsSectionPicker(
+    selected: InsightsSection,
+    onSelected: (InsightsSection) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        InsightsSection.entries.forEachIndexed { index, section ->
+            SegmentedButton(
+                selected = selected == section,
+                onClick = { onSelected(section) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = InsightsSection.entries.size),
+                label = { OneLineText(section.label, style = MaterialTheme.typography.labelLarge) },
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun InsightsScreen(
@@ -633,6 +657,7 @@ internal fun InsightsScreen(
     var copilotInput by remember { mutableStateOf("") }
     var copilotResult by remember { mutableStateOf<CopilotResult?>(null) }
     var showTimelineStory by remember { mutableStateOf(false) }
+    var selectedSection by remember { mutableStateOf(InsightsSection.OVERVIEW) }
 
     if (showTimelineStory) {
         FinancialTimelineStoryScreen(
@@ -660,126 +685,143 @@ internal fun InsightsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                FinancialHealthCard(
-                    health = health,
-                    currencyCode = state.currencyCode,
+                InsightsSectionPicker(
+                    selected = selectedSection,
+                    onSelected = { selectedSection = it },
                 )
             }
 
-            item {
-                OneLineText("Explainable signals", style = MaterialTheme.typography.titleMedium)
-                if (insights.isEmpty()) Text("No unusual pattern needs attention right now.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    insights.take(5).forEach { insight ->
-                        ElevatedCard(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                OneLineText(insight.title, style = MaterialTheme.typography.titleSmall)
-                                Text(insight.explanation, style = MaterialTheme.typography.bodyMedium)
-                                TextButton(onClick = { expandedInsight = if (expandedInsight == insight.id) null else insight.id }) { DhanamActionText("Why?") }
-                                if (expandedInsight == insight.id) {
-                                    InsightEvidenceDetails(
-                                        insight = insight,
-                                        state = state,
+            when (selectedSection) {
+                InsightsSection.OVERVIEW -> {
+                    item { MoneyIntelligenceOverview(state) }
+
+                    item {
+                        FinancialHealthCard(
+                            health = health,
+                            currencyCode = state.currencyCode,
+                        )
+                    }
+
+                    item {
+                        OneLineText("Explainable signals", style = MaterialTheme.typography.titleMedium)
+                        if (insights.isEmpty()) Text("No unusual pattern needs attention right now.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            insights.take(5).forEach { insight ->
+                                ElevatedCard(Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        OneLineText(insight.title, style = MaterialTheme.typography.titleSmall)
+                                        Text(insight.explanation, style = MaterialTheme.typography.bodyMedium)
+                                        TextButton(onClick = { expandedInsight = if (expandedInsight == insight.id) null else insight.id }) { DhanamActionText("Why?") }
+                                        if (expandedInsight == insight.id) {
+                                            InsightEvidenceDetails(
+                                                insight = insight,
+                                                state = state,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                InsightsSection.PLAN -> {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                OneLineText("Goals", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "Progress reuses linked Khata and Nivesha values — goals never own a second balance.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            TextButton(onClick = { showGoalDialog = true }) { DhanamActionText("Add goal") }
+                        }
+
+                        if (goalProgress.isEmpty()) {
+                            Text(
+                                text = "Link an existing account or investment to a goal; Dhanam reuses the same balance instead of creating another ledger.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                goalProgress.forEach { progress ->
+                                    GoalProgressCard(
+                                        progress = progress,
+                                        currencyCode = state.currencyCode,
+                                        dateFormatPreference = state.dateFormatPreference,
+                                        onDetails = { selectedGoalId = progress.goal.id },
                                     )
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        OneLineText("Goals", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Progress reuses linked Khata and Nivesha values — goals never own a second balance.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    TextButton(onClick = { showGoalDialog = true }) { DhanamActionText("Add goal") }
-                }
-
-                if (goalProgress.isEmpty()) {
-                    Text(
-                        text = "Link an existing account or investment to a goal; Dhanam reuses the same balance instead of creating another ledger.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        goalProgress.forEach { progress ->
-                            GoalProgressCard(
-                                progress = progress,
-                                currencyCode = state.currencyCode,
-                                dateFormatPreference = state.dateFormatPreference,
-                                onDetails = { selectedGoalId = progress.goal.id },
-                            )
+                InsightsSection.EXPLORE -> {
+                    item {
+                        ElevatedCard(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OneLineText("Financial time machine", style = MaterialTheme.typography.titleMedium)
+                                Text("Reconstruct balances from your ledger and the latest investment check-in on or before a date.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                OutlinedTextField(timeMachineDate, { timeMachineDate = it }, Modifier.fillMaxWidth(), label = { OneLineText("Date · YYYY-MM-DD") }, singleLine = true)
+                                historical?.let { snapshot ->
+                                    OneLineText("Net worth  ${insightMoney(snapshot.netWorthPaise, state.currencyCode)}", style = MaterialTheme.typography.titleSmall)
+                                    Text("Cash & reserves ${insightMoney(snapshot.cashAndReservesPaise, state.currencyCode)} · Investments ${insightMoney(snapshot.investmentValuePaise, state.currencyCode)} · Liabilities ${insightMoney(snapshot.liabilitiesPaise, state.currencyCode)}", style = MaterialTheme.typography.bodySmall)
+                                } ?: Text("Enter a valid date.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
-                }
-            }
 
-            item {
-                ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OneLineText("Financial time machine", style = MaterialTheme.typography.titleMedium)
-                        Text("Reconstruct balances from your ledger and the latest investment check-in on or before a date.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedTextField(timeMachineDate, { timeMachineDate = it }, Modifier.fillMaxWidth(), label = { OneLineText("Date · YYYY-MM-DD") }, singleLine = true)
-                        historical?.let { snapshot ->
-                            OneLineText("Net worth  ${insightMoney(snapshot.netWorthPaise, state.currencyCode)}", style = MaterialTheme.typography.titleSmall)
-                            Text("Cash & reserves ${insightMoney(snapshot.cashAndReservesPaise, state.currencyCode)} · Investments ${insightMoney(snapshot.investmentValuePaise, state.currencyCode)} · Liabilities ${insightMoney(snapshot.liabilitiesPaise, state.currencyCode)}", style = MaterialTheme.typography.bodySmall)
-                        } ?: Text("Enter a valid date.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-
-            item {
-                ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OneLineText("Private local copilot", style = MaterialTheme.typography.titleMedium)
-                        Text("Read questions and command parsing stay on device. A write is only a preview until you confirm it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedTextField(
-                            value = copilotInput,
-                            onValueChange = { copilotInput = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { OneLineText("Ask Dhanam") },
-                            placeholder = { OneLineText("Travel spend this year") },
-                            singleLine = true,
-                        )
-                        Button(onClick = { copilotResult = LocalFinancialCopilot.interpret(copilotInput, state.allTransactions, state.accounts, state.currencyCode) }, enabled = copilotInput.isNotBlank()) { DhanamActionText("Ask") }
-                        when (val result = copilotResult) {
-                            is CopilotResult.Answer -> Text(result.text)
-                            is CopilotResult.Unsupported -> Text(result.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            is CopilotResult.TransactionPreview -> {
-                                Text("Preview only", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Text("${if (result.direction == TransactionDirection.CREDIT) "Income" else "Expense"} ${insightMoney(result.amountPaise, state.currencyCode)} · ${result.payee} · ${result.accountName}")
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = {
-                                        onRecordTransaction(BigDecimal(result.amountPaise).movePointLeft(2).toPlainString(), result.payee, result.category, "Created from confirmed local copilot preview", result.direction, result.accountId, result.occurredAtEpochMs)
-                                        copilotResult = CopilotResult.Answer("Confirmed. The transaction was submitted through the normal Dhanam transaction rules.")
-                                    }) { DhanamActionText("Confirm") }
-                                    TextButton(onClick = { copilotResult = null }) { DhanamActionText("Cancel") }
+                    item {
+                        ElevatedCard(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OneLineText("Private local copilot", style = MaterialTheme.typography.titleMedium)
+                                Text("Read questions and command parsing stay on device. A write is only a preview until you confirm it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                OutlinedTextField(
+                                    value = copilotInput,
+                                    onValueChange = { copilotInput = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { OneLineText("Ask Dhanam") },
+                                    placeholder = { OneLineText("Travel spend this year") },
+                                    singleLine = true,
+                                )
+                                Button(onClick = { copilotResult = LocalFinancialCopilot.interpret(copilotInput, state.allTransactions, state.accounts, state.currencyCode) }, enabled = copilotInput.isNotBlank()) { DhanamActionText("Ask") }
+                                when (val result = copilotResult) {
+                                    is CopilotResult.Answer -> Text(result.text)
+                                    is CopilotResult.Unsupported -> Text(result.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    is CopilotResult.TransactionPreview -> {
+                                        Text("Preview only", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                        Text("${if (result.direction == TransactionDirection.CREDIT) "Income" else "Expense"} ${insightMoney(result.amountPaise, state.currencyCode)} · ${result.payee} · ${result.accountName}")
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Button(onClick = {
+                                                onRecordTransaction(BigDecimal(result.amountPaise).movePointLeft(2).toPlainString(), result.payee, result.category, "Created from confirmed local copilot preview", result.direction, result.accountId, result.occurredAtEpochMs)
+                                                copilotResult = CopilotResult.Answer("Confirmed. The transaction was submitted through the normal Dhanam transaction rules.")
+                                            }) { DhanamActionText("Confirm") }
+                                            TextButton(onClick = { copilotResult = null }) { DhanamActionText("Cancel") }
+                                        }
+                                    }
+                                    null -> Unit
                                 }
                             }
-                            null -> Unit
                         }
                     }
-                }
-            }
 
-            item {
-                UnifiedFinancialTimelineCard(
-                    events = timeline,
-                    currencyCode = state.currencyCode,
-                    dateFormatPreference = state.dateFormatPreference,
-                    onOpenStory = { showTimelineStory = true },
-                )
+                    item {
+                        UnifiedFinancialTimelineCard(
+                            events = timeline,
+                            currencyCode = state.currencyCode,
+                            dateFormatPreference = state.dateFormatPreference,
+                            onOpenStory = { showTimelineStory = true },
+                        )
+                    }
+                }
             }
         }
     }

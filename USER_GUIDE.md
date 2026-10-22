@@ -98,7 +98,7 @@ Removing a Vyakti only removes it from the reusable list. Existing Vyavahara rec
 
 ### 5. Review Vyavahara
 
-Open `Vyavahara` from the bottom navigation.
+Open **Activity** from the bottom navigation. Dhanam keeps the Sanskrit concept `Vyavahara` in the screen language while using a shorter navigation label.
 
 - Tap the search glyph at the top-right to search by Vyakti, Varga, Khata, or description.
 - Use **Khata scope** to see one Khata or all Khatas.
@@ -110,7 +110,7 @@ The **Money Pulse** summarizes inflow, outflow, and net movement for the active 
 
 ### 6. Track Nivesha and Sampada
 
-Open `Nivesha` from the bottom navigation, or use the shortcut in `Prarambha`.
+Open **Wealth** from the bottom navigation, or use the shortcut in `Prarambha`. The Wealth area contains Nivesha and Sampada views.
 
 #### Record a valuation check-in
 
@@ -128,6 +128,34 @@ Use **Nivesha** / **Contribute from cash / bank** when money moves from a daily 
 ### 7. Use neurodiverse mode
 
 In `Vinyasa`, turn on neurodiverse mode for a calmer presentation with reduced information density and a stronger emphasis on the next essential action. It does not alter calculations, records, or protections.
+
+### 8. Follow the Money Compass
+
+Open **Insights → Overview**. Money Compass turns existing financial facts into at most three prioritized review items. It can surface a cooling-tank decision, an overdue investment check-in, a thin emergency runway, unusually fast spending, or portfolio concentration. It is deterministic and never writes data or issues investment instructions.
+
+### 9. Check Spending Pace
+
+**Insights → Overview** shows month-to-date confirmed spending and a simple month-end pace estimate. Investment transfers and cooling-tank entries are excluded. When enough prior data exists, Dhanam compares the current pace with the recent three-month average. The result is a pace indicator, not a budget or prediction.
+
+### 10. Use Recurring Money Radar
+
+Recurring Money Radar detects stable weekly and monthly inflow/outflow patterns from the ledger itself. It looks for repeated counterparties with consistent timing and amounts, then shows a confidence indicator and a monthly-equivalent baseline. No bank subscription service or external account connection is required.
+
+### 11. Review Reserve Runway
+
+Reserve Runway compares positive Savings and Emergency Khata balances with the last 90 days of NEED spending. When there is enough evidence, it estimates how many months of recent essential spending the recorded reserve represents. Unknown evidence stays unknown rather than being treated as zero.
+
+### 12. Inspect Portfolio Concentration
+
+The Concentration Lens uses the latest recorded Nivesha check-in for each active investment. It shows the largest individual holding, the largest asset-class share, and aggregate drift from explicitly declared target allocations when targets exist. It is descriptive only; Dhanam does not generate buy, sell, or rebalance instructions.
+
+### Insights navigation
+
+Insights is organised into three focused sections:
+
+- **Overview** — Money Compass, the five new intelligence views, Financial Health, and explainable signals.
+- **Plan** — goals and linked funding.
+- **Explore** — financial time machine, private local copilot, and the Story of my money timeline.
 
 ## Frequently asked questions
 

@@ -227,8 +227,8 @@ internal fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPr
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(selected = true, onClick = {}, icon = { NavigationGlyph("⌂") }, label = { OneLineText("Home", style = MaterialTheme.typography.labelSmall) })
-                NavigationBarItem(selected = false, onClick = { destination = DhanamDestination.TRANSACTIONS }, icon = { NavigationGlyph("≡") }, label = { OneLineText("Transactions", style = MaterialTheme.typography.labelSmall) })
-                NavigationBarItem(selected = false, onClick = { destination = DhanamDestination.INVESTMENTS }, icon = { NavigationGlyph("↗") }, label = { OneLineText("Investments", style = MaterialTheme.typography.labelSmall) })
+                NavigationBarItem(selected = false, onClick = { destination = DhanamDestination.TRANSACTIONS }, icon = { NavigationGlyph("≡") }, label = { OneLineText("Activity", style = MaterialTheme.typography.labelSmall) })
+                NavigationBarItem(selected = false, onClick = { destination = DhanamDestination.INVESTMENTS }, icon = { NavigationGlyph("↗") }, label = { OneLineText("Wealth", style = MaterialTheme.typography.labelSmall) })
                 NavigationBarItem(selected = false, onClick = { destination = DhanamDestination.INSIGHTS }, icon = { NavigationGlyph("◎") }, label = { OneLineText("Insights", style = MaterialTheme.typography.labelSmall) })
                 NavigationBarItem(selected = false, onClick = { destination = DhanamDestination.SETTINGS }, icon = { NavigationGlyph("•••") }, label = { OneLineText("More", style = MaterialTheme.typography.labelSmall) })
             }
