@@ -84,7 +84,7 @@ private enum class CsvReviewFilter { ALL, NEEDS_REVIEW, NEW }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-internal fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onImportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String, AccountKind) -> Unit, onArchiveAccount: (String) -> Unit, onExportTransactionsCsv: (Uri) -> Unit, onImportTransactionsCsv: (Uri, String) -> Unit, onConfirmTransactionsCsvImport: (Map<Int, CsvImportAction>) -> Unit, onCancelTransactionsCsvImport: () -> Unit, onRemoveStarterData: () -> Unit) {
+internal fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onImportInterchange: (Uri) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onCreateAccount: (String, AccountProductType, AssetClass, String, String, AccountKind) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String, String?, AccountKind) -> Unit, onArchiveAccount: (String) -> Unit, onUnarchiveAccount: (String) -> Unit, onDeleteAccount: (String) -> Unit, onExportTransactionsCsv: (Uri) -> Unit, onImportTransactionsCsv: (Uri, String) -> Unit, onConfirmTransactionsCsvImport: (Map<Int, CsvImportAction>) -> Unit, onCancelTransactionsCsvImport: () -> Unit, onRemoveStarterData: () -> Unit) {
     var showKhataManagement by remember { mutableStateOf(false) }
     var showVargaManagement by remember { mutableStateOf(false) }
     var showVyaktiManagement by remember { mutableStateOf(false) }
@@ -127,7 +127,7 @@ internal fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurod
     if (showPrivacy) { PrivacyAndPermissionsScreen(onBack = { showPrivacy = false }); return }
     if (showAbout) { AboutScreen(onBack = { showAbout = false }); return }
     if (showNirmalamAi) { NirmalamAiScreen(state, onBack = { showNirmalamAi = false }, onSave = onSaveNirmalamAi, onDisable = onDisableNirmalamAi, onInsight = onNirmalamAiInsight); return }
-    if (showKhataManagement) { KhataManagementScreen(state, onBack = { showKhataManagement = false }, onUpdate = onUpdateAccount, onArchive = onArchiveAccount); return }
+    if (showKhataManagement) { KhataManagementScreen(state, onBack = { showKhataManagement = false }, onCreateAccount = onCreateAccount, onUpdate = onUpdateAccount, onArchive = onArchiveAccount, onUnarchive = onUnarchiveAccount, onDelete = onDeleteAccount); return }
     if (showVargaManagement) { VargaManagementScreen(state.categories, onBack = { showVargaManagement = false }, onSave = onSaveCategory, onUpdate = onUpdateCategory, onDelete = onDeleteCategory); return }
     if (showVyaktiManagement) { VyaktiManagementScreen(state.payees, state.categories, onBack = { showVyaktiManagement = false }, onSave = onSavePayee, onUpdate = onUpdatePayee, onDelete = onDeletePayee); return }
     Scaffold(
@@ -220,7 +220,7 @@ internal fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurod
                             primaryLabel = "Export",
                             onPrimary = { showJsonExportConfirmation = true },
                             secondaryLabel = "Import",
-                            onSecondary = { openInterchangeFile.launch(arrayOf("application/vnd.nirmalam-dhanam+json", "application/json", "text/plain")) },
+                            onSecondary = { openInterchangeFile.launch(arrayOf("*/*")) },
                         )
                         DataToolRow(
                             title = ".ndf encrypted backup",
@@ -278,7 +278,7 @@ internal fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurod
             confirmButton = {
                 Button(onClick = {
                     showCsvImportPicker = false
-                    openCsvFile.launch(arrayOf("text/csv", "text/comma-separated-values"))
+                    openCsvFile.launch(arrayOf("*/*"))
                 }, enabled = selectedImportAccountId != null) { DhanamActionText("Choose file") }
             },
             dismissButton = { TextButton(onClick = { showCsvImportPicker = false }) { DhanamActionText("Cancel") } }
@@ -350,7 +350,7 @@ internal fun SettingsScreen(state: MvpFinanceState, onBack: () -> Unit, onNeurod
                     importReplacementConfirmed = false
                     passphraseVisible = false
                     ndfAction = null
-                    if (action == NdfFileAction.EXPORT) createNdfFile.launch("nirmalam-dhanam-backup.ndf") else openNdfFile.launch(arrayOf("application/vnd.nirmalam-dhanam.backup+zip", "application/zip"))
+                    if (action == NdfFileAction.EXPORT) createNdfFile.launch("nirmalam-dhanam-backup.ndf") else openNdfFile.launch(arrayOf("*/*"))
                 }, enabled = pendingNdfPassphrase.isEmpty() && ndfPassphrase.length >= 8 && (action == NdfFileAction.EXPORT || importReplacementConfirmed)) { Text("Continue") }
             },
             dismissButton = { TextButton(onClick = { ndfAction = null; ndfPassphrase = ""; importReplacementConfirmed = false; passphraseVisible = false }) { DhanamActionText("Cancel") } }
@@ -833,24 +833,69 @@ private fun VyaktiManagementScreen(payees: List<PayeeEntity>, categories: List<C
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun KhataManagementScreen(state: MvpFinanceState, onBack: () -> Unit, onUpdate: (String, String, AccountProductType, AssetClass, String, AccountKind) -> Unit, onArchive: (String) -> Unit) {
+private fun KhataManagementScreen(
+    state: MvpFinanceState,
+    onBack: () -> Unit,
+    onCreateAccount: (String, AccountProductType, AssetClass, String, String, AccountKind) -> Unit,
+    onUpdate: (String, String, AccountProductType, AssetClass, String, String?, AccountKind) -> Unit,
+    onArchive: (String) -> Unit,
+    onUnarchive: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
     var query by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableStateOf(0) }
     var editingId by remember { mutableStateOf<String?>(null) }
     var khataToArchive by remember { mutableStateOf<AccountEntity?>(null) }
-    val shown = state.accounts.filter { it.name.contains(query.trim(), ignoreCase = true) }
+    var khataToDelete by remember { mutableStateOf<AccountEntity?>(null) }
+    var showAccountSetup by remember { mutableStateOf(false) }
+
+    val activeAccounts = state.accounts.filter { !it.isArchived }
+    val archivedAccounts = state.accounts.filter { it.isArchived }
+    val currentList = if (selectedTab == 0) activeAccounts else archivedAccounts
+    val shown = currentList.filter { it.name.contains(query.trim(), ignoreCase = true) }
+
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = { DhanamScreenTopBar(title = "Khata", subtitle = "Money places", onBack = onBack) },
+        floatingActionButton = {
+            if (selectedTab == 0) {
+                ExtendedFloatingActionButton(
+                    onClick = { showAccountSetup = true },
+                    icon = { OneLineText("+", style = MaterialTheme.typography.titleLarge) },
+                    text = { OneLineText("New Khata") }
+                )
+            }
+        }
     ) { padding ->
         LazyColumn(Modifier.padding(padding).padding(horizontal = 20.dp), contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        label = { OneLineText("Active (${activeAccounts.size})") }
+                    )
+                    SegmentedButton(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        label = { OneLineText("Archived (${archivedAccounts.size})") }
+                    )
+                }
+            }
             item { OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { OneLineText("Search Khata") }, placeholder = { OneLineText("Account name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true) }
+            if (shown.isEmpty()) item {
+                Text(if (selectedTab == 0) "No active Khatas found." else "No archived Khatas found.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             items(shown.size) { index ->
                 val account = shown[index]
+                val balance = state.accountBalances.firstOrNull { it.accountId == account.id }?.balancePaise
                 ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (editingId == account.id) InlineKhataEditor(account, onCancel = { editingId = null }, onSave = { name, product, assetClass, target, cashKind -> onUpdate(account.id, name, product, assetClass, target, cashKind); editingId = null })
+                    if (editingId == account.id) InlineKhataEditor(account, onCancel = { editingId = null }, onSave = { name, product, assetClass, target, openingBalance, cashKind -> onUpdate(account.id, name, product, assetClass, target, openingBalance, cashKind); editingId = null })
                     else {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column {
+                            Column(Modifier.weight(1f)) {
                                 OneLineText(account.name, style = MaterialTheme.typography.titleSmall)
                                 val roleLabel = when (account.kind) {
                                     AccountKind.SPENDING -> "Daily"
@@ -860,10 +905,18 @@ private fun KhataManagementScreen(state: MvpFinanceState, onBack: () -> Unit, on
                                     AccountKind.INVESTMENT -> "Investment"
                                 }
                                 Text("${account.productType.name.replace('_', ' ')} · $roleLabel", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                balance?.let {
+                                    Text("Balance: ${formatMoney(it, state.currencyCode)}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                }
                             }
                             Row {
-                                TextButton(onClick = { editingId = account.id }) { DhanamActionText("Edit") }
-                                TextButton(onClick = { khataToArchive = account }) { DhanamActionText("Archive") }
+                                if (!account.isArchived) {
+                                    TextButton(onClick = { editingId = account.id }) { DhanamActionText("Edit") }
+                                    TextButton(onClick = { khataToArchive = account }) { DhanamActionText("Archive") }
+                                } else {
+                                    TextButton(onClick = { onUnarchive(account.id) }) { DhanamActionText("Restore") }
+                                }
+                                TextButton(onClick = { khataToDelete = account }) { DhanamActionText("Delete") }
                             }
                         }
                     }
@@ -871,16 +924,32 @@ private fun KhataManagementScreen(state: MvpFinanceState, onBack: () -> Unit, on
             }
         }
     }
-    khataToArchive?.let { account -> AlertDialog(onDismissRequest = { khataToArchive = null }, title = { Text("Archive Khata?") }, text = { Text("${account.name} will be hidden from active views. Its history remains safely in this encrypted database.") }, confirmButton = { Button(onClick = { onArchive(account.id); khataToArchive = null }) { DhanamActionText("Archive") } }, dismissButton = { TextButton(onClick = { khataToArchive = null }) { DhanamActionText("Cancel") } }) }
+    if (showAccountSetup) {
+        AccountSetupDialog(
+            onDismiss = { showAccountSetup = false },
+            onSave = { name, product, assetClass, target, openingBalance, cashKind ->
+                onCreateAccount(name, product, assetClass, target, openingBalance, cashKind)
+                showAccountSetup = false
+            }
+        )
+    }
+    khataToArchive?.let { account -> AlertDialog(onDismissRequest = { khataToArchive = null }, title = { Text("Archive Khata?") }, text = { Text("${account.name} will be hidden from active views. Its history remains safely in this encrypted database and can be restored anytime.") }, confirmButton = { Button(onClick = { onArchive(account.id); khataToArchive = null }) { DhanamActionText("Archive") } }, dismissButton = { TextButton(onClick = { khataToArchive = null }) { DhanamActionText("Cancel") } }) }
+    khataToDelete?.let { account -> AlertDialog(onDismissRequest = { khataToDelete = null }, title = { Text("Delete Khata permanently?") }, text = { Text("${account.name} and all its transaction and valuation history will be permanently deleted from this device.") }, confirmButton = { Button(onClick = { onDelete(account.id); khataToDelete = null }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { DhanamActionText("Delete") } }, dismissButton = { TextButton(onClick = { khataToDelete = null }) { DhanamActionText("Cancel") } }) }
 }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun InlineKhataEditor(account: AccountEntity, onCancel: () -> Unit, onSave: (String, AccountProductType, AssetClass, String, AccountKind) -> Unit) {
+private fun InlineKhataEditor(account: AccountEntity, onCancel: () -> Unit, onSave: (String, AccountProductType, AssetClass, String, String, AccountKind) -> Unit) {
     var name by remember(account.id) { mutableStateOf(account.name) }
     var product by remember(account.id) { mutableStateOf(account.productType) }
     var assetClass by remember(account.id) { mutableStateOf(account.assetClass) }
     var target by remember(account.id) { mutableStateOf((account.targetAllocationBps / 100.0).toString()) }
+    var openingBalance by remember(account.id) {
+        val absVal = kotlin.math.abs(account.openingBalancePaise)
+        val rupees = absVal / 100
+        val paise = absVal % 100
+        mutableStateOf(if (paise == 0L) rupees.toString() else "%.2f".format(absVal / 100.0))
+    }
     var cashKind by remember(account.id) { mutableStateOf(account.kind.takeIf { it in AccountRolePolicy.cashAccountKinds } ?: AccountKind.SPENDING) }
     var productExpanded by remember(account.id) { mutableStateOf(false) }
     var classExpanded by remember(account.id) { mutableStateOf(false) }
@@ -912,6 +981,7 @@ private fun InlineKhataEditor(account: AccountEntity, onCancel: () -> Unit, onSa
             }
         }
     }
+    OutlinedTextField(openingBalance, { openingBalance = it }, Modifier.fillMaxWidth(), label = { OneLineText(if (product in investmentProductTypes) "Starting value ₹" else if (product == AccountProductType.CREDIT_CARD || product == AccountProductType.LOAN) "Amount owed ₹" else "Opening balance ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
     ExposedDropdownMenuBox(classExpanded, { classExpanded = !classExpanded }) {
         OutlinedTextField(assetClass.name, {}, Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true).fillMaxWidth(), readOnly = true, label = { OneLineText("Asset class") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(classExpanded) })
         ExposedDropdownMenu(classExpanded, { classExpanded = false }) { AssetClass.entries.forEach { type -> DropdownMenuItem(text = { OneLineText(type.name) }, onClick = { assetClass = type; classExpanded = false }) } }
@@ -919,7 +989,7 @@ private fun InlineKhataEditor(account: AccountEntity, onCancel: () -> Unit, onSa
     if (product in investmentProductTypes) {
         OutlinedTextField(target, { target = it }, Modifier.fillMaxWidth(), label = { OneLineText("Target %") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { DhanamActionText("Cancel") }; Button(onClick = { onSave(name, product, assetClass, target, cashKind) }, enabled = name.isNotBlank()) { DhanamActionText("Save") } }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { DhanamActionText("Cancel") }; Button(onClick = { onSave(name, product, assetClass, target, openingBalance, cashKind) }, enabled = name.isNotBlank()) { DhanamActionText("Save") } }
 }
 
 @Composable
@@ -1008,12 +1078,45 @@ private fun CategoryEditorDialog(onDismiss: () -> Unit, onSave: (String, Transac
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun PayeeEditorDialog(categories: List<CategoryEntity>, onDismiss: () -> Unit, onSave: (String, String?) -> Unit) {
-    var name by remember { mutableStateOf("") }; var defaultCategory by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("New Vyakti") }, text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(name, { name = it }, label = { OneLineText("Name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
-        OutlinedTextField(defaultCategory, { defaultCategory = it }, label = { OneLineText("Default Varga") }, placeholder = { OneLineText(categories.firstOrNull()?.name ?: "Food") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
-    } }, confirmButton = { Button(onClick = { onSave(name, defaultCategory.ifBlank { null }) }, enabled = name.isNotBlank()) { DhanamActionText("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { DhanamActionText("Cancel") } })
+    var name by remember { mutableStateOf("") }
+    var defaultCategory by remember { mutableStateOf<String?>(null) }
+    var categoryExpanded by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New Vyakti") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { OneLineText("Name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
+                ExposedDropdownMenuBox(categoryExpanded, { categoryExpanded = !categoryExpanded }) {
+                    OutlinedTextField(
+                        value = defaultCategory ?: "None (No default Varga)",
+                        onValueChange = {},
+                        modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true).fillMaxWidth(),
+                        readOnly = true,
+                        label = { OneLineText("Default Varga") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) }
+                    )
+                    ExposedDropdownMenu(categoryExpanded, { categoryExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { OneLineText("None (No default Varga)") },
+                            onClick = { defaultCategory = null; categoryExpanded = false }
+                        )
+                        HorizontalDivider()
+                        categories.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { OneLineText(cat.name) },
+                                onClick = { defaultCategory = cat.name; categoryExpanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { onSave(name, defaultCategory) }, enabled = name.isNotBlank()) { DhanamActionText("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { DhanamActionText("Cancel") } }
+    )
 }
 
 @Composable
@@ -1040,14 +1143,38 @@ private fun InlineCategoryEditor(category: CategoryEntity, onCancel: () -> Unit,
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun InlinePayeeEditor(payee: PayeeEntity, categories: List<CategoryEntity>, onCancel: () -> Unit, onSave: (String, String?) -> Unit) {
     var name by remember(payee.id) { mutableStateOf(payee.name) }
-    var defaultCategory by remember(payee.id) { mutableStateOf(payee.defaultCategory.orEmpty()) }
+    var defaultCategory by remember(payee.id) { mutableStateOf(payee.defaultCategory) }
+    var categoryExpanded by remember(payee.id) { mutableStateOf(false) }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify Vyakti", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { OneLineText("Name") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
-    OutlinedTextField(defaultCategory, { defaultCategory = it }, Modifier.fillMaxWidth(), label = { OneLineText("Default Varga") }, placeholder = { OneLineText(categories.firstOrNull()?.name ?: "Optional") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { DhanamActionText("Cancel") }; Button(onClick = { onSave(name, defaultCategory.ifBlank { null }) }, enabled = name.isNotBlank()) { DhanamActionText("Save") } }
+    ExposedDropdownMenuBox(categoryExpanded, { categoryExpanded = !categoryExpanded }) {
+        OutlinedTextField(
+            value = defaultCategory ?: "None (No default Varga)",
+            onValueChange = {},
+            modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true).fillMaxWidth(),
+            readOnly = true,
+            label = { OneLineText("Default Varga") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) }
+        )
+        ExposedDropdownMenu(categoryExpanded, { categoryExpanded = false }) {
+            DropdownMenuItem(
+                text = { OneLineText("None (No default Varga)") },
+                onClick = { defaultCategory = null; categoryExpanded = false }
+            )
+            HorizontalDivider()
+            categories.forEach { cat ->
+                DropdownMenuItem(
+                    text = { OneLineText(cat.name) },
+                    onClick = { defaultCategory = cat.name; categoryExpanded = false }
+                )
+            }
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { DhanamActionText("Cancel") }; Button(onClick = { onSave(name, defaultCategory) }, enabled = name.isNotBlank()) { DhanamActionText("Save") } }
 }
 
 @Composable

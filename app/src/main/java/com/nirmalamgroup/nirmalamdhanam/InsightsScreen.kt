@@ -585,6 +585,8 @@ internal fun InsightsScreen(
     onBack: () -> Unit,
     onCreateGoal: (String, String, String, String?) -> Unit,
     onArchiveGoal: (String) -> Unit,
+    onUnarchiveGoal: (String) -> Unit,
+    onDeleteGoal: (String) -> Unit,
     onSetGoalAllocation: (String, String, String) -> Unit,
     onRemoveGoalAllocation: (String) -> Unit,
     onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit
@@ -841,6 +843,14 @@ internal fun InsightsScreen(
                     onArchiveGoal(progress.goal.id)
                     selectedGoalId = null
                 },
+                onUnarchive = {
+                    onUnarchiveGoal(progress.goal.id)
+                    selectedGoalId = null
+                },
+                onDelete = {
+                    onDeleteGoal(progress.goal.id)
+                    selectedGoalId = null
+                },
             )
         }
     }
@@ -954,6 +964,8 @@ private fun GoalDetailSheet(
     onRemoveAllocation: (String) -> Unit,
     onDismiss: () -> Unit,
     onArchive: () -> Unit,
+    onUnarchive: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     var fundingMenuExpanded by remember(progress.goal.id) { mutableStateOf(false) }
     var selectedFundingAccountId by remember(progress.goal.id, linkableAccounts) {
@@ -1203,12 +1215,32 @@ private fun GoalDetailSheet(
             }
 
             item {
-                OutlinedButton(
-                    onClick = onArchive,
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    DhanamActionText("Archive goal")
+                    if (progress.goal.isArchived) {
+                        Button(
+                            onClick = onUnarchive,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            DhanamActionText("Restore goal")
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onArchive,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            DhanamActionText("Archive goal")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        DhanamActionText("Delete goal")
+                    }
                 }
             }
         }

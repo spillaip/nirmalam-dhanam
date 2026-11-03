@@ -75,7 +75,7 @@ import java.util.UUID
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-internal fun TransactionHistoryScreen(state: MvpFinanceState, onBack: () -> Unit, onReports: () -> Unit, onDelete: (String) -> Unit, onUpdate: (String, String, String, String, String, TransactionDirection) -> Unit, onRecord: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit) {
+internal fun TransactionHistoryScreen(state: MvpFinanceState, onBack: () -> Unit, onReports: () -> Unit, onDelete: (String) -> Unit, onUpdate: (String, String, String, String, String, TransactionDirection, String) -> Unit, onRecord: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit) {
     var query by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
@@ -258,8 +258,9 @@ internal fun TransactionHistoryScreen(state: MvpFinanceState, onBack: () -> Unit
                                 transaction = transaction,
                                 payees = state.payees,
                                 categories = state.categories,
+                                accounts = state.accounts,
                                 onCancel = { editingTransactionId = null },
-                                onSave = { amount, payee, category, description, direction -> onUpdate(transaction.id, amount, payee, category, description, direction); editingTransactionId = null }
+                                onSave = { amount, payee, category, description, direction, accountId -> onUpdate(transaction.id, amount, payee, category, description, direction, accountId); editingTransactionId = null }
                             )
                         } else {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -437,17 +438,21 @@ internal fun IncomeExpenseReportsScreen(state: MvpFinanceState, onBack: () -> Un
                     }
                 }
             }
-            item { OneLineText("Cashflow by Khata", style = MaterialTheme.typography.titleMedium) }
+            item { OneLineText("Cashflow & balances by Khata", style = MaterialTheme.typography.titleMedium) }
             if (accountTotals.isEmpty()) item { ElevatedCard(Modifier.fillMaxWidth()) { Text("Your Khata-level flow appears after your first confirmed entry.", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) } }
             items(accountTotals.take(6).size) { index ->
                 val accountEntry = accountTotals[index]
+                val currentBalance = state.accountBalances.firstOrNull { it.accountId == accountEntry.key }?.balancePaise
                 ElevatedCard(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
+                    Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             OneLineText(accountNames[accountEntry.key] ?: "Khata", style = MaterialTheme.typography.titleSmall)
-                            Text("Net movement for ${range.label.lowercase()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Net movement (${range.label.lowercase()}): ${formatMoney(accountEntry.value, state.currencyCode, includeSign = true)}", style = MaterialTheme.typography.bodySmall, color = if (accountEntry.value < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        OneLineText(formatMoney(accountEntry.value, state.currencyCode, includeSign = true), style = MaterialTheme.typography.titleSmall, color = if (accountEntry.value < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Balance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            OneLineText(currentBalance?.let { formatMoney(it, state.currencyCode) } ?: "—", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }
@@ -637,14 +642,16 @@ private fun LedgerFilterSheet(state: MvpFinanceState, selectedAccountId: String?
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun InlineVyavaharaEditor(transaction: TransactionEntity, payees: List<PayeeEntity>, categories: List<CategoryEntity>, onCancel: () -> Unit, onSave: (String, String, String, String, TransactionDirection) -> Unit) {
+private fun InlineVyavaharaEditor(transaction: TransactionEntity, payees: List<PayeeEntity>, categories: List<CategoryEntity>, accounts: List<AccountEntity>, onCancel: () -> Unit, onSave: (String, String, String, String, TransactionDirection, String) -> Unit) {
     var amount by remember(transaction.id) { mutableStateOf((transaction.amountPaise / 100.0).toString()) }
     var payee by remember(transaction.id) { mutableStateOf(transaction.payee.orEmpty()) }
     var category by remember(transaction.id) { mutableStateOf(transaction.category.orEmpty()) }
     var description by remember(transaction.id) { mutableStateOf(transaction.description.orEmpty()) }
     var direction by remember(transaction.id) { mutableStateOf(transaction.direction) }
+    var accountId by remember(transaction.id) { mutableStateOf(transaction.accountId) }
     var payeeExpanded by remember(transaction.id) { mutableStateOf(false) }
     var categoryExpanded by remember(transaction.id) { mutableStateOf(false) }
+    var accountExpanded by remember(transaction.id) { mutableStateOf(false) }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Text("Modify Vyavahara", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -652,6 +659,25 @@ private fun InlineVyavaharaEditor(transaction: TransactionEntity, payees: List<P
         FilterChip(selected = direction == TransactionDirection.CREDIT, onClick = { direction = TransactionDirection.CREDIT }, label = { OneLineText("Aaya", style = MaterialTheme.typography.labelMedium) })
     }
     OutlinedTextField(amount, { amount = it }, Modifier.fillMaxWidth(), label = { OneLineText("Amount in ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+    ExposedDropdownMenuBox(expanded = accountExpanded, onExpandedChange = { accountExpanded = !accountExpanded }) {
+        OutlinedTextField(
+            value = accounts.firstOrNull { it.id == accountId }?.name ?: "Select Khata",
+            onValueChange = {},
+            modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true).fillMaxWidth(),
+            readOnly = true,
+            label = { OneLineText("Khata") },
+            singleLine = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(accountExpanded) }
+        )
+        ExposedDropdownMenu(expanded = accountExpanded, onDismissRequest = { accountExpanded = false }) {
+            accounts.forEach { savedAccount ->
+                DropdownMenuItem(
+                    text = { OneLineText("${savedAccount.name} · ${savedAccount.productType.name.replace('_', ' ')}") },
+                    onClick = { accountId = savedAccount.id; accountExpanded = false }
+                )
+            }
+        }
+    }
     ExposedDropdownMenuBox(expanded = payeeExpanded, onExpandedChange = { payeeExpanded = !payeeExpanded }) {
         OutlinedTextField(
             value = payee,
@@ -697,7 +723,7 @@ private fun InlineVyavaharaEditor(transaction: TransactionEntity, payees: List<P
     OutlinedTextField(description, { description = it }, Modifier.fillMaxWidth(), label = { OneLineText("Description") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), minLines = 2)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         TextButton(onClick = onCancel) { DhanamActionText("Cancel") }
-        Button(onClick = { onSave(amount, payee, category, description, direction) }) { DhanamActionText("Save") }
+        Button(onClick = { onSave(amount, payee, category, description, direction, accountId) }) { DhanamActionText("Save") }
     }
 }
 

@@ -31,6 +31,6 @@ fun NdfBackupFilePickers(
     ) { uri -> uri?.let(onImportSourceSelected) }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { createDocument.launch("nirmalam-dhanam-backup.ndf") }) { Text("Export .ndf") }
-        OutlinedButton(onClick = { openDocument.launch(arrayOf(NDF_MIME_TYPE, "application/zip")) }) { Text("Import .ndf") }
+        OutlinedButton(onClick = { openDocument.launch(arrayOf("*/*")) }) { Text("Import .ndf") }
     }
 }

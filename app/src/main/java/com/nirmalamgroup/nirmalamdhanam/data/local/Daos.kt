@@ -19,11 +19,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao interface AccountDao {
     @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY name") fun observeActive(): Flow<List<AccountEntity>>
+    @Query("SELECT * FROM accounts ORDER BY isArchived, name") fun observeAll(): Flow<List<AccountEntity>>
     @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY name") suspend fun getActive(): List<AccountEntity>
     @Query("SELECT * FROM accounts ORDER BY name") suspend fun getAll(): List<AccountEntity>
     @Query("SELECT * FROM accounts WHERE id = :accountId LIMIT 1") suspend fun getById(accountId: String): AccountEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(account: AccountEntity)
     @Query("UPDATE accounts SET isArchived = 1 WHERE id = :accountId") suspend fun archive(accountId: String): Int
+    @Query("UPDATE accounts SET isArchived = 0 WHERE id = :accountId") suspend fun unarchive(accountId: String): Int
+    @Query("DELETE FROM accounts WHERE id = :accountId") suspend fun delete(accountId: String): Int
     @Query("DELETE FROM accounts WHERE id LIKE 'demo-%'") suspend fun deleteDemoAccounts(): Int
     @Query("""
         SELECT
@@ -68,6 +71,7 @@ import kotlinx.coroutines.flow.Flow
         ORDER BY occurredAtEpochMs DESC""")
     suspend fun findPotentialDuplicates(accountId: String, amountPaise: Long, direction: TransactionDirection, start: Long, end: Long): List<TransactionEntity>
     @Query("DELETE FROM transactions WHERE id = :transactionId") suspend fun delete(transactionId: String): Int
+    @Query("DELETE FROM transactions WHERE accountId = :accountId") suspend fun deleteForAccount(accountId: String): Int
     @Query("DELETE FROM transactions WHERE id LIKE 'demo-%'") suspend fun deleteDemoTransactions(): Int
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName") suspend fun renameCategoryReferences(oldName: String, newName: String): Int
     @Query("UPDATE transactions SET payee = :newName, merchant = :newName WHERE payee = :oldName") suspend fun renamePayeeReferences(oldName: String, newName: String): Int
@@ -122,6 +126,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId ORDER BY asOfEpochDay DESC") fun observeForAccount(accountId: String): Flow<List<InvestmentBalanceSnapshotEntity>>
     @Query("SELECT * FROM investment_balance_snapshots WHERE accountId = :accountId ORDER BY asOfEpochDay ASC, createdAtEpochMs ASC") suspend fun getForAccount(accountId: String): List<InvestmentBalanceSnapshotEntity>
     @Query("DELETE FROM investment_balance_snapshots WHERE id = :snapshotId") suspend fun delete(snapshotId: String): Int
+    @Query("DELETE FROM investment_balance_snapshots WHERE accountId = :accountId") suspend fun deleteForAccount(accountId: String): Int
     @Query("DELETE FROM investment_balance_snapshots WHERE id LIKE 'demo-%'") suspend fun deleteDemoSnapshots(): Int
 }
 
@@ -134,10 +139,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao interface GoalDao {
     @Query("SELECT * FROM goals WHERE isArchived = 0 ORDER BY targetDateEpochDay IS NULL, targetDateEpochDay, name") fun observeActive(): Flow<List<GoalEntity>>
+    @Query("SELECT * FROM goals ORDER BY isArchived, targetDateEpochDay IS NULL, targetDateEpochDay, name") fun observeAll(): Flow<List<GoalEntity>>
     @Query("SELECT * FROM goals ORDER BY isArchived, targetDateEpochDay IS NULL, targetDateEpochDay, name") suspend fun getAll(): List<GoalEntity>
     @Query("SELECT * FROM goals WHERE id = :goalId LIMIT 1") suspend fun getById(goalId: String): GoalEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(goal: GoalEntity)
     @Query("UPDATE goals SET isArchived = 1 WHERE id = :goalId") suspend fun archive(goalId: String): Int
+    @Query("UPDATE goals SET isArchived = 0 WHERE id = :goalId") suspend fun unarchive(goalId: String): Int
     @Query("DELETE FROM goals WHERE id = :goalId") suspend fun delete(goalId: String): Int
 }
 
@@ -148,4 +155,5 @@ import kotlinx.coroutines.flow.Flow
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(allocation: GoalAllocationEntity)
     @Query("DELETE FROM goal_allocations WHERE id = :id") suspend fun delete(id: String): Int
     @Query("DELETE FROM goal_allocations WHERE goalId = :goalId") suspend fun deleteForGoal(goalId: String): Int
+    @Query("DELETE FROM goal_allocations WHERE accountId = :accountId") suspend fun deleteForAccount(accountId: String): Int
 }

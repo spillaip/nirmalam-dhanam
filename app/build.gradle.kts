@@ -37,8 +37,8 @@ android {
         applicationId = "com.nirmalamgroup.nirmalamdhanam"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "1.9.0"
+        versionCode = 21
+        versionName = "2.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

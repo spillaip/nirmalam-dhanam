@@ -79,7 +79,7 @@ import java.util.UUID
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-internal fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, AccountKind, (AccountEntity) -> Unit) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String, AccountKind) -> Unit, onArchiveAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onImportInterchange: (Uri) -> Unit, onCreateGoal: (String, String, String, String?) -> Unit, onArchiveGoal: (String) -> Unit, onSetGoalAllocation: (String, String, String) -> Unit, onRemoveGoalAllocation: (String) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onExportTransactionsCsv: (Uri) -> Unit, onImportTransactionsCsv: (Uri, String) -> Unit, onConfirmTransactionsCsvImport: (Map<Int, CsvImportAction>) -> Unit, onCancelTransactionsCsvImport: () -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onShowInvestmentPerformance: (Boolean) -> Unit, onExportPerformancePdf: (List<InvestmentPerformanceMetric>) -> Unit, onDismissMessage: () -> Unit) {
+internal fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountProductType, AssetClass, String, String, AccountKind, (AccountEntity) -> Unit) -> Unit, onUpdateAccount: (String, String, AccountProductType, AssetClass, String, String?, AccountKind) -> Unit, onArchiveAccount: (String) -> Unit, onUnarchiveAccount: (String) -> Unit, onDeleteAccount: (String) -> Unit, onSaveInvestmentBalance: (String, String, String, String, String) -> Unit, onUpdateInvestmentBalance: (String, String, String, String, String, String) -> Unit, onContributeToInvestment: (String, String, String) -> Unit, onDeleteInvestmentSnapshot: (String) -> Unit, onDeleteTransaction: (String) -> Unit, onUpdateTransaction: (String, String, String, String, String, TransactionDirection, String) -> Unit, onRecordTransaction: (String, String, String, String, TransactionDirection, String, Long) -> Unit, onNeurodiverseModeChanged: (Boolean) -> Unit, onCurrencyChanged: (String) -> Unit, onDateFormatPreferenceChanged: (DateFormatPreference) -> Unit, onSavedLedgerViewChanged: (LedgerRange, LedgerFilter, String?, String?) -> Unit, onSaveNirmalamAi: (String, String, String, Boolean) -> Unit, onDisableNirmalamAi: () -> Unit, onNirmalamAiInsight: (NirmalamAiInsight) -> Unit, onExportInterchange: (Uri) -> Unit, onImportInterchange: (Uri) -> Unit, onCreateGoal: (String, String, String, String?) -> Unit, onArchiveGoal: (String) -> Unit, onUnarchiveGoal: (String) -> Unit, onDeleteGoal: (String) -> Unit, onSetGoalAllocation: (String, String, String) -> Unit, onRemoveGoalAllocation: (String) -> Unit, onExportNdf: (Uri, String) -> Unit, onImportNdf: (Uri, String) -> Unit, onSaveCategory: (String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onUpdateCategory: (String, String, TransactionDirection, String, CategoryPriority, CategoryNature) -> Unit, onDeleteCategory: (String) -> Unit, onSavePayee: (String, String?) -> Unit, onUpdatePayee: (String, String, String?) -> Unit, onDeletePayee: (String) -> Unit, onExportTransactionsCsv: (Uri) -> Unit, onImportTransactionsCsv: (Uri, String) -> Unit, onConfirmTransactionsCsvImport: (Map<Int, CsvImportAction>) -> Unit, onCancelTransactionsCsvImport: () -> Unit, onRemoveStarterData: () -> Unit, onConfirmPurchase: (TransactionEntity) -> Unit, onDiscardPurchase: (TransactionEntity) -> Unit, onShowInvestmentPerformance: (Boolean) -> Unit, onExportPerformancePdf: (List<InvestmentPerformanceMetric>) -> Unit, onDismissMessage: () -> Unit) {
     var showAccountSetup by remember { mutableStateOf(false) }
     var accountSetupProduct by remember { mutableStateOf(AccountProductType.CASH) }
     var addKhataMenuExpanded by remember { mutableStateOf(false) }
@@ -121,6 +121,8 @@ internal fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPr
                 onBack = { destination = DhanamDestination.HOME },
                 onCreateGoal = onCreateGoal,
                 onArchiveGoal = onArchiveGoal,
+                onUnarchiveGoal = onUnarchiveGoal,
+                onDeleteGoal = onDeleteGoal,
                 onSetGoalAllocation = onSetGoalAllocation,
                 onRemoveGoalAllocation = onRemoveGoalAllocation,
                 onRecordTransaction = onRecordTransaction,
@@ -147,8 +149,11 @@ internal fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPr
                 onSavePayee = onSavePayee,
                 onUpdatePayee = onUpdatePayee,
                 onDeletePayee = onDeletePayee,
+                onCreateAccount = { name, product, assetClass, target, openingBalance, cashKind -> onCreateAccount(name, product, assetClass, target, openingBalance, cashKind, {}) },
                 onUpdateAccount = onUpdateAccount,
                 onArchiveAccount = onArchiveAccount,
+                onUnarchiveAccount = onUnarchiveAccount,
+                onDeleteAccount = onDeleteAccount,
                 onExportTransactionsCsv = onExportTransactionsCsv,
                 onImportTransactionsCsv = onImportTransactionsCsv,
                 onConfirmTransactionsCsvImport = onConfirmTransactionsCsvImport,
@@ -181,7 +186,7 @@ internal fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPr
                 onUpdateSnapshot = onUpdateInvestmentBalance,
                 onUpdateInvestment = { id, name, product, assetClass, target ->
                     val existingKind = state.accounts.firstOrNull { it.id == id }?.kind ?: AccountKind.INVESTMENT
-                    onUpdateAccount(id, name, product, assetClass, target, existingKind)
+                    onUpdateAccount(id, name, product, assetClass, target, null, existingKind)
                 },
                 onArchiveInvestment = onArchiveAccount,
             )
@@ -254,6 +259,7 @@ internal fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPr
             }
             item { HomeMoneyPulse(state.recentTransactions, state.currencyCode) }
             item { PrarambhaBalanceCharts(state) }
+            item { HomeKhatasAndSampadaCard(state) }
             item {
                 ElevatedCard(onClick = { destination = DhanamDestination.INVESTMENTS }, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -350,4 +356,175 @@ internal fun MvpHome(state: MvpFinanceState, onCreateAccount: (String, AccountPr
     }
     if (showInvestmentCheckIn) InvestmentBalanceCheckInDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, state.investmentHistory, state.dateFormatPreference, initialAccountId = initialInvestmentCheckInId, onDismiss = { showInvestmentCheckIn = false; initialInvestmentCheckInId = null }, onSave = { accountId, date, cost, value, note -> onSaveInvestmentBalance(accountId, date, cost, value, note); showInvestmentCheckIn = false; initialInvestmentCheckInId = null })
     if (showContribution) InvestmentContributionDialog(state.accounts.filter { it.kind == AccountKind.INVESTMENT }, onDismiss = { showContribution = false }, onSave = { id, amount, payee -> onContributeToInvestment(id, amount, payee); showContribution = false })
+}
+
+@Composable
+private fun HomeKhatasAndSampadaCard(state: MvpFinanceState) {
+    val activeAccounts = remember(state.accounts) { state.accounts.filter { !it.isArchived } }
+    val balancesByAccount = remember(state.accountBalances) { state.accountBalances.associateBy { it.accountId } }
+    val snapshotsByAccount = remember(state.investmentSnapshots) { state.investmentSnapshots.associateBy { it.accountId } }
+
+    val dailyAccounts = activeAccounts.filter { it.kind == AccountKind.SPENDING }
+    val reserveAccounts = activeAccounts.filter { it.kind == AccountKind.SAVINGS || it.kind == AccountKind.EMERGENCY }
+    val liabilityAccounts = activeAccounts.filter { it.kind == AccountKind.CREDIT || it.productType == AccountProductType.CREDIT_CARD || it.productType == AccountProductType.LOAN }
+    val investmentAccounts = activeAccounts.filter { it.kind == AccountKind.INVESTMENT }
+
+    fun accountBalancePaise(account: AccountEntity): Long {
+        return if (account.kind == AccountKind.INVESTMENT) {
+            snapshotsByAccount[account.id]?.currentValuePaise ?: account.openingBalancePaise
+        } else {
+            balancesByAccount[account.id]?.balancePaise ?: account.openingBalancePaise
+        }
+    }
+
+    val dailyTotal = dailyAccounts.sumOf { accountBalancePaise(it) }
+    val reserveTotal = reserveAccounts.sumOf { accountBalancePaise(it) }
+    val liabilityTotal = liabilityAccounts.sumOf { kotlin.math.abs(accountBalancePaise(it)) }
+    val investmentTotal = investmentAccounts.sumOf { accountBalancePaise(it) }
+
+    val totalAssets = dailyTotal + reserveTotal + investmentTotal
+    val totalLiabilities = liabilityTotal
+    val grandTotalSampada = totalAssets - totalLiabilities
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    OneLineText("SAMPADA (NET WORTH) · GRAND TOTAL", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    OneLineText(
+                        formatMoney(grandTotalSampada, state.currencyCode),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (grandTotalSampada < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        "Assets ${formatMoney(totalAssets, state.currencyCode)} − Liabilities ${formatMoney(totalLiabilities, state.currencyCode)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            OneLineText("ACCOUNTS & KHATAS BY TYPE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+
+            AccountSegmentSection(
+                title = "Daily Khatas",
+                subtitle = "Cash & Bank",
+                segmentTotal = dailyTotal,
+                accounts = dailyAccounts,
+                state = state,
+                accountBalancePaise = ::accountBalancePaise
+            )
+
+            AccountSegmentSection(
+                title = "Reserves",
+                subtitle = "Savings & Emergency",
+                segmentTotal = reserveTotal,
+                accounts = reserveAccounts,
+                state = state,
+                accountBalancePaise = ::accountBalancePaise
+            )
+
+            if (liabilityAccounts.isNotEmpty()) {
+                AccountSegmentSection(
+                    title = "Liabilities",
+                    subtitle = "Credit Cards & Loans",
+                    segmentTotal = -liabilityTotal,
+                    accounts = liabilityAccounts,
+                    state = state,
+                    accountBalancePaise = ::accountBalancePaise,
+                    isLiability = true
+                )
+            }
+
+            if (investmentAccounts.isNotEmpty()) {
+                AccountSegmentSection(
+                    title = "Nivesha",
+                    subtitle = "Investment Holdings",
+                    segmentTotal = investmentTotal,
+                    accounts = investmentAccounts,
+                    state = state,
+                    accountBalancePaise = ::accountBalancePaise
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountSegmentSection(
+    title: String,
+    subtitle: String,
+    segmentTotal: Long,
+    accounts: List<AccountEntity>,
+    state: MvpFinanceState,
+    accountBalancePaise: (AccountEntity) -> Long,
+    isLiability: Boolean = false
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                formatMoney(segmentTotal, state.currencyCode, includeSign = isLiability),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = if (isLiability) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (accounts.isEmpty()) {
+            Text("No $title set up", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Column(
+                modifier = Modifier.padding(start = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                accounts.forEach { account ->
+                    val balance = accountBalancePaise(account)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(account.name, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                account.productType.name.replace('_', ' '),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            formatMoney(balance, state.currencyCode),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    }
 }

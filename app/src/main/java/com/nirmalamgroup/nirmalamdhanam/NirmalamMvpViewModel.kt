@@ -167,8 +167,8 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
                         opened.transactionDao().observeRecent(),
                         opened.transactionDao().observeAll()
                     ) { envelopes, spent, holding, recent, all -> DayDetails(envelopes, spent, holding, recent, all) }
-                    val accountDetails = combine(opened.accountDao().observeActive(), opened.accountDao().observeBalances(), opened.categoryDao().observeAll(), opened.payeeDao().observeAll()) { accounts, balances, categories, payees -> AccountDirectory(accounts, balances, categories, payees) }
-                    val portfolioDetails = combine(opened.investmentBalanceSnapshotDao().observeLatestForAll(), opened.investmentBalanceSnapshotDao().observeAll(), opened.netWorthSnapshotDao().observeAll(), opened.goalDao().observeActive(), opened.goalAllocationDao().observeAll()) { latest, history, netWorth, goals, allocations -> PortfolioDirectory(latest, history, netWorth, goals, allocations) }
+                    val accountDetails = combine(opened.accountDao().observeAll(), opened.accountDao().observeBalances(), opened.categoryDao().observeAll(), opened.payeeDao().observeAll()) { accounts, balances, categories, payees -> AccountDirectory(accounts, balances, categories, payees) }
+                    val portfolioDetails = combine(opened.investmentBalanceSnapshotDao().observeLatestForAll(), opened.investmentBalanceSnapshotDao().observeAll(), opened.netWorthSnapshotDao().observeAll(), opened.goalDao().observeAll(), opened.goalAllocationDao().observeAll()) { latest, history, netWorth, goals, allocations -> PortfolioDirectory(latest, history, netWorth, goals, allocations) }
                     combine(opened.accountDao().observeCashPosition(), accountDetails, opened.configDao().observe(), dayDetails, portfolioDetails) { cash, accountDetailsValue, config, day, portfolio ->
                         val dailyLimit = day.envelopes.firstOrNull { it.type == EnvelopeType.WANTS }?.dailyLimitPaise ?: 50_000
                         MvpFinanceState(isUnlocked = true, isLoading = false, cashPaise = cash.trueAvailableCashPaise, accounts = accountDetailsValue.accounts, categories = accountDetailsValue.categories, payees = accountDetailsValue.payees, currencyCode = config?.currencyCode ?: "INR", dateFormatPreference = config?.dateFormatPreference ?: DateFormatPreference.DEVICE_LOCALE, savedLedgerRange = config?.savedLedgerRange ?: "MONTH", savedLedgerFilter = config?.savedLedgerFilter ?: "ALL", savedLedgerAccountId = config?.savedLedgerAccountId, savedLedgerCategoryName = config?.savedLedgerCategoryName, neurodiverseModeEnabled = config?.neurodiverseModeEnabled ?: false, hourlyRatePaise = config?.hourlyRatePaise ?: 10_000, safeToSpendTodayPaise = FinancialCalculations.safeToSpend(dailyLimit, day.spent), todaySpentPaise = day.spent, holdingTank = day.holding, accountBalances = accountDetailsValue.balances, investmentSnapshots = portfolio.latest, investmentHistory = portfolio.history, netWorthHistory = portfolio.netWorth, recentTransactions = day.recent, allTransactions = day.all, goals = portfolio.goals, goalAllocations = portfolio.allocations, changesSinceEpochMs = previousOpen, showInvestmentPerformance = _state.value.showInvestmentPerformance, nirmalamAiReady = NirmalamAiPreferences(app).isReady(), nirmalamAiLoading = _state.value.nirmalamAiLoading, nirmalamAiResponse = _state.value.nirmalamAiResponse, csvImportPlan = _state.value.csvImportPlan, message = _state.value.message)
@@ -193,14 +193,20 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
         opened.accountDao().upsert(account)
         viewModelScope.launch { onCreated(account) }
     }
-    fun updateAccount(accountId: String, name: String, productType: AccountProductType, assetClass: AssetClass, targetPercentText: String, cashKind: AccountKind) = viewModelScope.launch(Dispatchers.IO) {
+    fun updateAccount(accountId: String, name: String, productType: AccountProductType, assetClass: AssetClass, targetPercentText: String, openingBalanceText: String? = null, cashKind: AccountKind) = viewModelScope.launch(Dispatchers.IO) {
         val targetBps = runCatching { BigDecimal(targetPercentText.trim().ifBlank { "0" }).movePointRight(2).intValueExact() }.getOrNull()
+        val balance = openingBalanceText?.let { runCatching { BigDecimal(it.trim().ifBlank { "0" }).movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact() }.getOrNull() }
         val opened = database ?: return@launch
         val account = state.value.accounts.firstOrNull { it.id == accountId } ?: return@launch
-        if (name.isBlank() || targetBps == null || targetBps !in 0..10_000) { _state.update { it.copy(message = "Use a name and a target between 0% and 100%.") }; return@launch }
+        if (name.isBlank() || targetBps == null || targetBps !in 0..10_000 || (openingBalanceText != null && (balance == null || balance < 0))) { _state.update { it.copy(message = "Use a name, valid opening balance, and a target between 0% and 100%.") }; return@launch }
         val kind = AccountRolePolicy.resolve(productType, cashKind)
+        val storedBalance = if (balance != null) {
+            if (productType == AccountProductType.CREDIT_CARD || productType == AccountProductType.LOAN) -balance else balance
+        } else {
+            account.openingBalancePaise
+        }
         val benchmark = suggestedBenchmark(name, productType)
-        opened.accountDao().upsert(account.copy(name = name.trim(), kind = kind, productType = productType, assetClass = assetClass, targetAllocationBps = targetBps, benchmarkIndexName = benchmark?.indexName, benchmarkTrackingMethod = benchmark?.method ?: BenchmarkTrackingMethod.NONE))
+        opened.accountDao().upsert(account.copy(name = name.trim(), kind = kind, productType = productType, assetClass = assetClass, targetAllocationBps = targetBps, openingBalancePaise = storedBalance, benchmarkIndexName = benchmark?.indexName, benchmarkTrackingMethod = benchmark?.method ?: BenchmarkTrackingMethod.NONE))
     }
     fun archiveInvestmentAccount(accountId: String) = viewModelScope.launch(Dispatchers.IO) { database?.accountDao()?.archive(accountId) }
     fun exportInterchangeReport(destination: Uri) = viewModelScope.launch(Dispatchers.IO) {
@@ -236,6 +242,24 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
     fun archiveGoal(goalId: String) = viewModelScope.launch(Dispatchers.IO) { database?.goalDao()?.archive(goalId) }
+    fun unarchiveGoal(goalId: String) = viewModelScope.launch(Dispatchers.IO) { database?.goalDao()?.unarchive(goalId) }
+    fun deleteGoal(goalId: String) = viewModelScope.launch(Dispatchers.IO) {
+        val opened = database ?: return@launch
+        opened.withTransaction {
+            opened.goalDao().delete(goalId)
+            opened.goalAllocationDao().deleteForGoal(goalId)
+        }
+    }
+    fun unarchiveAccount(accountId: String) = viewModelScope.launch(Dispatchers.IO) { database?.accountDao()?.unarchive(accountId) }
+    fun deleteAccount(accountId: String) = viewModelScope.launch(Dispatchers.IO) {
+        val opened = database ?: return@launch
+        opened.withTransaction {
+            opened.accountDao().delete(accountId)
+            opened.transactionDao().deleteForAccount(accountId)
+            opened.investmentBalanceSnapshotDao().deleteForAccount(accountId)
+            opened.goalAllocationDao().deleteForAccount(accountId)
+        }
+    }
 
     fun setGoalAllocation(goalId: String, accountId: String, percentText: String) = viewModelScope.launch(Dispatchers.IO) {
         val allocationBps = runCatching {
@@ -568,7 +592,7 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
     fun deleteTransaction(transactionId: String) = viewModelScope.launch(Dispatchers.IO) { database?.transactionDao()?.delete(transactionId) }
-    fun updateTransaction(transactionId: String, amountText: String, payee: String, category: String, description: String, direction: TransactionDirection) = viewModelScope.launch(Dispatchers.IO) {
+    fun updateTransaction(transactionId: String, amountText: String, payee: String, category: String, description: String, direction: TransactionDirection, accountId: String? = null) = viewModelScope.launch(Dispatchers.IO) {
         val amount = runCatching { BigDecimal(amountText.trim()).movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact() }.getOrNull()
         if (amount == null || amount <= 0) { _state.update { it.copy(message = "Enter a valid amount.") }; return@launch }
         val opened = database ?: return@launch
@@ -577,10 +601,12 @@ class NirmalamMvpViewModel(application: Application) : AndroidViewModel(applicat
         val config = opened.configDao().observe().first() ?: return@launch
         val resolvedPayee = payee.trim().ifBlank { if (direction == TransactionDirection.CREDIT) "Unlabelled Aaya" else "Unlabelled Vyaya" }
         val resolvedCategory = category.trim().ifBlank { if (direction == TransactionDirection.CREDIT) "Income" else "Uncategorised" }
+        val targetAccountId = accountId?.ifBlank { null } ?: existing.accountId
         opened.withTransaction {
             val categoryMeta = opened.categoryDao().getByName(resolvedCategory)
             val updated = coolDown(
                 existing.copy(
+                    accountId = targetAccountId,
                     amountPaise = amount, direction = direction, merchant = resolvedPayee, payee = resolvedPayee,
                     category = resolvedCategory, description = description.trim().ifBlank { null }
                 ),
